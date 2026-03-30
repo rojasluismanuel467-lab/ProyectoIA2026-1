@@ -22,41 +22,38 @@ void main() {
     TripEntity(
       id: 'trip1',
       driverId: tDriverId,
-      startTime: DateTime.now(),
-      hasCameraPermission: true,
+      tripType: TripType.normal,
       status: TripStatus.completed,
+      hasCameraPermission: true,
     ),
     TripEntity(
       id: 'trip2',
       driverId: tDriverId,
-      startTime: DateTime.now(),
+      tripType: TripType.free,
+      status: TripStatus.inProgress,
       hasCameraPermission: false,
-      status: TripStatus.active,
     ),
   ];
 
   test(
-      'should get list of trips for the driver from the repository',
-      () async {
-    // arrange
-    when(() => mockRepository.getDriverTrips(any()))
-        .thenAnswer((_) async => Right(tTrips));
-    // act
-    final result = await usecase(const GetDriverTripsParams(driverId: tDriverId));
-    // assert
-    expect(result, Right(tTrips));
-    verify(() => mockRepository.getDriverTrips(tDriverId));
-    verifyNoMoreInteractions(mockRepository);
-  });
+    'should get list of trips for the driver from the repository',
+    () async {
+      when(() => mockRepository.getDriverTrips(any()))
+          .thenAnswer((_) async => Right(tTrips));
+      final result =
+          await usecase(const GetDriverTripsParams(driverId: tDriverId));
+      expect(result, Right(tTrips));
+      verify(() => mockRepository.getDriverTrips(tDriverId));
+      verifyNoMoreInteractions(mockRepository);
+    },
+  );
 
   test('should return a failure when repository fails', () async {
-    // arrange
     const tFailure = ServerFailure(message: 'Server error');
     when(() => mockRepository.getDriverTrips(any()))
         .thenAnswer((_) async => const Left(tFailure));
-    // act
-    final result = await usecase(const GetDriverTripsParams(driverId: tDriverId));
-    // assert
+    final result =
+        await usecase(const GetDriverTripsParams(driverId: tDriverId));
     expect(result, const Left(tFailure));
     verify(() => mockRepository.getDriverTrips(tDriverId));
     verifyNoMoreInteractions(mockRepository);

@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../domain/entities/trip_entity.dart';
+
 abstract class TripEvent extends Equatable {
   const TripEvent();
 
@@ -7,16 +9,40 @@ abstract class TripEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-class TripCheckActiveRequested extends TripEvent {
-  const TripCheckActiveRequested({required this.driverId});
+/// Carga los viajes scheduled del conductor y verifica si hay uno en progreso.
+class LoadDriverTrips extends TripEvent {
+  const LoadDriverTrips({required this.driverId});
   final String driverId;
 
   @override
   List<Object?> get props => [driverId];
 }
 
-class TripStartRequested extends TripEvent {
-  const TripStartRequested({
+/// Inicia un viaje de empresa (scheduled → inProgress).
+class StartTrip extends TripEvent {
+  const StartTrip({
+    required this.tripId,
+    required this.hasCameraPermission,
+  });
+  final String tripId;
+  final bool hasCameraPermission;
+
+  @override
+  List<Object?> get props => [tripId, hasCameraPermission];
+}
+
+/// Finaliza el viaje de empresa activo (inProgress → pendingApproval).
+class EndTrip extends TripEvent {
+  const EndTrip({required this.tripId});
+  final String tripId;
+
+  @override
+  List<Object?> get props => [tripId];
+}
+
+/// Inicia un viaje libre (crea nuevo trip free + inProgress).
+class StartFreeTrip extends TripEvent {
+  const StartFreeTrip({
     required this.driverId,
     required this.hasCameraPermission,
   });
@@ -27,20 +53,36 @@ class TripStartRequested extends TripEvent {
   List<Object?> get props => [driverId, hasCameraPermission];
 }
 
-class TripEndRequested extends TripEvent {
-  const TripEndRequested({required this.tripId});
+/// Finaliza el viaje libre activo (inProgress → completed).
+class EndFreeTrip extends TripEvent {
+  const EndFreeTrip({required this.tripId});
   final String tripId;
 
   @override
   List<Object?> get props => [tripId];
 }
 
-/// Internal — dispatched every second by the Timer.
+/// El conductor reporta un impedimento en el viaje activo.
+class ReportImpediment extends TripEvent {
+  const ReportImpediment({
+    required this.tripId,
+    required this.category,
+    this.description,
+  });
+  final String tripId;
+  final ImpedimentCategory category;
+  final String? description;
+
+  @override
+  List<Object?> get props => [tripId, category, description];
+}
+
+/// Tick interno del timer (cada segundo).
 class TripTick extends TripEvent {
   const TripTick();
 }
 
-/// Internal — dispatched when GPS emits a new position.
+/// Actualización de posición GPS.
 class TripLocationUpdated extends TripEvent {
   const TripLocationUpdated({required this.lat, required this.lng});
   final double lat;
@@ -50,19 +92,11 @@ class TripLocationUpdated extends TripEvent {
   List<Object?> get props => [lat, lng];
 }
 
-// --- Cierre de viaje ---
+/// Carga el historial de viajes terminados del conductor.
+class LoadDriverTripHistory extends TripEvent {
+  const LoadDriverTripHistory({required this.driverId});
+  final String driverId;
 
-class RequestRemoteClosureEvent extends TripEvent {
-  final String tripId;
-  const RequestRemoteClosureEvent({required this.tripId});
   @override
-  List<Object?> get props => [tripId];
-}
-
-class ApprovalStreamUpdatedEvent extends TripEvent {
-  final bool isApproved;
-  final String? tripId;
-  const ApprovalStreamUpdatedEvent({required this.isApproved, this.tripId});
-  @override
-  List<Object?> get props => [isApproved, tripId];
+  List<Object?> get props => [driverId];
 }

@@ -5,59 +5,65 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/entities/trip_entity.dart';
+import '../../domain/usecases/end_free_trip_usecase.dart';
 import '../../domain/usecases/end_trip_usecase.dart';
 import '../../domain/usecases/get_active_trip_usecase.dart';
+import '../../domain/usecases/get_driver_scheduled_trips_usecase.dart';
+import '../../domain/usecases/get_driver_trip_history_usecase.dart';
+import '../../domain/usecases/report_impediment_usecase.dart';
 import '../../domain/usecases/save_route_point_usecase.dart';
+import '../../domain/usecases/start_free_trip_usecase.dart';
 import '../../domain/usecases/start_trip_usecase.dart';
-import '../../domain/usecases/request_remote_closure_usecase.dart';
-import '../../domain/usecases/listen_to_approval_stream_usecase.dart';
-import '../../domain/usecases/end_trip_with_zone_check_usecase.dart';
 import 'trip_event.dart';
 import 'trip_state.dart';
 
 class TripBloc extends Bloc<TripEvent, TripState> {
   TripBloc({
+    required GetDriverScheduledTripsUseCase getDriverScheduledTripsUseCase,
+    required GetActiveTripUseCase getActiveTripUseCase,
     required StartTripUseCase startTripUseCase,
     required EndTripUseCase endTripUseCase,
-    required GetActiveTripUseCase getActiveTripUseCase,
+    required StartFreeTripUseCase startFreeTripUseCase,
+    required EndFreeTripUseCase endFreeTripUseCase,
+    required ReportImpedimentUseCase reportImpedimentUseCase,
     required SaveRoutePointUseCase saveRoutePointUseCase,
-    required RequestRemoteClosureUseCase requestRemoteClosureUseCase,
-    required ListenToApprovalStreamUseCase listenToApprovalStreamUseCase,
-    required EndTripWithZoneCheckUseCase endTripWithZoneCheckUseCase,
-  })  : _startTripUseCase = startTripUseCase,
-        _endTripUseCase = endTripUseCase,
+    required GetDriverTripHistoryUseCase getDriverTripHistoryUseCase,
+  })  : _getDriverScheduledTripsUseCase = getDriverScheduledTripsUseCase,
         _getActiveTripUseCase = getActiveTripUseCase,
+        _startTripUseCase = startTripUseCase,
+        _endTripUseCase = endTripUseCase,
+        _startFreeTripUseCase = startFreeTripUseCase,
+        _endFreeTripUseCase = endFreeTripUseCase,
+        _reportImpedimentUseCase = reportImpedimentUseCase,
         _saveRoutePointUseCase = saveRoutePointUseCase,
-        _requestRemoteClosureUseCase = requestRemoteClosureUseCase,
-        _listenToApprovalStreamUseCase = listenToApprovalStreamUseCase,
-        _endTripWithZoneCheckUseCase = endTripWithZoneCheckUseCase,
+        _getDriverTripHistoryUseCase = getDriverTripHistoryUseCase,
         super(const TripInitial()) {
-    on<TripCheckActiveRequested>(_onCheckActive);
-    on<TripStartRequested>(_onStartTrip);
-    on<TripEndRequested>(_onEndTrip);
+    on<LoadDriverTrips>(_onLoadDriverTrips);
+    on<StartTrip>(_onStartTrip);
+    on<EndTrip>(_onEndTrip);
+    on<StartFreeTrip>(_onStartFreeTrip);
+    on<EndFreeTrip>(_onEndFreeTrip);
+    on<ReportImpediment>(_onReportImpediment);
     on<TripTick>(_onTick);
     on<TripLocationUpdated>(_onLocationUpdated);
-    on<RequestRemoteClosureEvent>(_onRequestRemoteClosure);
-    on<ApprovalStreamUpdatedEvent>(_onApprovalStreamUpdated);
+    on<LoadDriverTripHistory>(_onLoadDriverTripHistory);
   }
 
+  final GetDriverScheduledTripsUseCase _getDriverScheduledTripsUseCase;
+  final GetActiveTripUseCase _getActiveTripUseCase;
   final StartTripUseCase _startTripUseCase;
   final EndTripUseCase _endTripUseCase;
-  final GetActiveTripUseCase _getActiveTripUseCase;
+  final StartFreeTripUseCase _startFreeTripUseCase;
+  final EndFreeTripUseCase _endFreeTripUseCase;
+  final ReportImpedimentUseCase _reportImpedimentUseCase;
   final SaveRoutePointUseCase _saveRoutePointUseCase;
-
-  final RequestRemoteClosureUseCase _requestRemoteClosureUseCase;
-  final ListenToApprovalStreamUseCase _listenToApprovalStreamUseCase;
-  final EndTripWithZoneCheckUseCase _endTripWithZoneCheckUseCase;
+  final GetDriverTripHistoryUseCase _getDriverTripHistoryUseCase;
 
   Timer? _timer;
-  Timer? _inactivityTimer;
   StreamSubscription<Position>? _positionSub;
-  StreamSubscription? _approvalSubscription;
 
-  static const _inactivityTimeout = Duration(minutes: 20);
+  // ── Timer ───────────────────────────────────────────────────────────────────
 
-  // ── Timer ────────────────────────────────────────────────────────────────────
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -70,20 +76,8 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     _timer = null;
   }
 
-  // ── Inactivity timer ───────────────────────────────────────────────────────
-  void _resetInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(_inactivityTimeout, () {
-      add(TripEndRequested(tripId: (state as TripActive).trip.id));
-    });
-  }
-
-  void _stopInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = null;
-  }
-
   // ── Location ────────────────────────────────────────────────────────────────
+
   Future<void> _startLocationTracking() async {
     _positionSub?.cancel();
     try {
@@ -110,40 +104,119 @@ class TripBloc extends Bloc<TripEvent, TripState> {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  Future<void> _onCheckActive(
-    TripCheckActiveRequested event,
+  Future<void> _onLoadDriverTrips(
+    LoadDriverTrips event,
     Emitter<TripState> emit,
   ) async {
     emit(const TripLoading());
-    final result = await _getActiveTripUseCase(
-      GetActiveTripParams(driverId: event.driverId),
-    );
-    result.fold(
-      (_) => emit(const TripIdle()),
-      (trip) {
-        if (trip == null) {
-          emit(const TripIdle());
-        } else if (trip.status == TripStatus.pending) {
-          emit(TripPending(trip: trip));
-        } else if (trip.status == TripStatus.pendingApproval) {
-          emit(TripPendingApproval(trip: trip));
-        } else {
-          emit(TripActive(trip: trip, elapsed: trip.elapsed));
-          _startTimer();
-          _startLocationTracking();
-          _resetInactivityTimer();
+
+    // 1. ¿Hay un viaje en progreso?
+    final activeResult =
+        await _getActiveTripUseCase(GetActiveTripParams(driverId: event.driverId));
+
+    final TripEntity? activeTrip = activeResult.fold((_) => null, (t) => t);
+
+    if (activeTrip != null) {
+      if (activeTrip.isFreeTrip) {
+        emit(FreeTripInProgress(
+          trip: activeTrip,
+          elapsed: activeTrip.elapsed,
+        ));
+        _startTimer();
+        _startLocationTracking();
+        return;
+      } else {
+        emit(TripInProgress(
+          trip: activeTrip,
+          elapsed: activeTrip.elapsed,
+        ));
+        _startTimer();
+        _startLocationTracking();
+        return;
+      }
+    }
+
+    // 2. Cargar viajes scheduled
+    final scheduledResult =
+        await _getDriverScheduledTripsUseCase(event.driverId);
+
+    scheduledResult.fold(
+      (failure) => emit(TripError(message: failure.message)),
+      (trips) {
+        // Verificar si alguno tiene impedimento activo
+        final hasImpediment = trips
+            .any((t) => t.status == TripStatus.withImpediment);
+
+        // Si hay uno con impedimento, mostrar ese estado
+        if (hasImpediment) {
+          final impedimentTrip =
+              trips.firstWhere((t) => t.status == TripStatus.withImpediment);
+          emit(TripWithImpediment(trip: impedimentTrip));
+          return;
         }
+
+        // Solo viajes en estado scheduled (los demás no se muestran al conductor)
+        final pending =
+            trips.where((t) => t.status == TripStatus.scheduled).toList();
+
+        emit(TripListLoaded(
+          scheduledTrips: pending,
+          hasActiveImpediment: false,
+        ));
       },
     );
   }
 
   Future<void> _onStartTrip(
-    TripStartRequested event,
+    StartTrip event,
     Emitter<TripState> emit,
   ) async {
     emit(const TripLoading());
+
     final result = await _startTripUseCase(
       StartTripParams(
+        tripId: event.tripId,
+        hasCameraPermission: event.hasCameraPermission,
+      ),
+    );
+
+    result.fold(
+      (failure) => emit(TripError(message: failure.message)),
+      (trip) {
+        emit(TripInProgress(
+          trip: trip,
+          elapsed: Duration.zero,
+          isNewlyStarted: true,
+        ));
+        _startTimer();
+        _startLocationTracking();
+      },
+    );
+  }
+
+  Future<void> _onEndTrip(
+    EndTrip event,
+    Emitter<TripState> emit,
+  ) async {
+    _stopTimer();
+    _stopLocationTracking();
+
+    final result = await _endTripUseCase(EndTripParams(tripId: event.tripId));
+
+    result.fold(
+      (failure) => emit(TripError(message: failure.message)),
+      (trip) => emit(TripPendingApproval(trip: trip)),
+    );
+  }
+
+  Future<void> _onStartFreeTrip(
+    StartFreeTrip event,
+    Emitter<TripState> emit,
+  ) async {
+    emit(const TripLoading());
+
+    final result = await _startFreeTripUseCase(
+      StartFreeTripParams(
         driverId: event.driverId,
         hasCameraPermission: event.hasCameraPermission,
       ),
@@ -152,31 +225,59 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     result.fold(
       (failure) => emit(TripError(message: failure.message)),
       (trip) {
-        emit(TripActive(trip: trip, elapsed: Duration.zero, isNewlyStarted: true));
+        emit(FreeTripInProgress(
+          trip: trip,
+          elapsed: Duration.zero,
+          isNewlyStarted: true,
+        ));
         _startTimer();
         _startLocationTracking();
-        _resetInactivityTimer();
       },
     );
   }
 
-  Future<void> _onEndTrip(
-    TripEndRequested event,
+  Future<void> _onEndFreeTrip(
+    EndFreeTrip event,
     Emitter<TripState> emit,
   ) async {
-    if (state is TripActive) {
-      await _finalizeAndEmit(event.tripId, emit);
-    } else if (state is TripPendingApproval) {
-      emit(const TripIdle());
-    }
+    _stopTimer();
+    _stopLocationTracking();
+
+    final result = await _endFreeTripUseCase(event.tripId);
+
+    result.fold(
+      (failure) => emit(TripError(message: failure.message)),
+      (trip) => emit(TripEnded(trip: trip)),
+    );
+  }
+
+  Future<void> _onReportImpediment(
+    ReportImpediment event,
+    Emitter<TripState> emit,
+  ) async {
+    _stopTimer();
+    _stopLocationTracking();
+
+    final result = await _reportImpedimentUseCase(
+      ReportImpedimentParams(
+        tripId: event.tripId,
+        category: event.category,
+        description: event.description,
+      ),
+    );
+
+    result.fold(
+      (failure) => emit(TripError(message: failure.message)),
+      (trip) => emit(TripWithImpediment(trip: trip)),
+    );
   }
 
   void _onTick(TripTick event, Emitter<TripState> emit) {
-    if (state is TripActive) {
-      final current = state as TripActive;
-      if (current.trip.closureRequestedAt != null) {
-        return;
-      }
+    if (state is TripInProgress) {
+      final current = state as TripInProgress;
+      emit(current.copyWith(elapsed: current.trip.elapsed));
+    } else if (state is FreeTripInProgress) {
+      final current = state as FreeTripInProgress;
       emit(current.copyWith(elapsed: current.trip.elapsed));
     }
   }
@@ -185,89 +286,46 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     TripLocationUpdated event,
     Emitter<TripState> emit,
   ) {
-    if (state is TripActive) {
-      final current = state as TripActive;
-      final newRoute = [...?current.route, LatLng(event.lat, event.lng)];
+    if (state is TripInProgress) {
+      final current = state as TripInProgress;
+      final newRoute = [...current.route, LatLng(event.lat, event.lng)];
+      // Guardar punto en Firestore en segundo plano
+      _saveRoutePointUseCase(SaveRoutePointParams(
+        tripId: current.trip.id,
+        lat: event.lat,
+        lng: event.lng,
+      ));
       emit(current.copyWith(route: newRoute));
-      _resetInactivityTimer();
+    } else if (state is FreeTripInProgress) {
+      final current = state as FreeTripInProgress;
+      final newRoute = [...current.route, LatLng(event.lat, event.lng)];
+      _saveRoutePointUseCase(SaveRoutePointParams(
+        tripId: current.trip.id,
+        lat: event.lat,
+        lng: event.lng,
+      ));
+      emit(current.copyWith(route: newRoute));
     }
   }
 
-  Future<void> _onRequestRemoteClosure(
-    RequestRemoteClosureEvent event,
+  Future<void> _onLoadDriverTripHistory(
+    LoadDriverTripHistory event,
     Emitter<TripState> emit,
   ) async {
-    if (state is! TripActive) return;
+    emit(const TripHistoryLoading());
 
-    final currentState = state as TripActive;
-
-    final result = await _requestRemoteClosureUseCase(event.tripId);
-    result.fold(
-      (failure) => emit(TripClosureError(message: failure.message)),
-      (_) {
-        final updatedTrip = currentState.trip.copyWith(
-          closureRequestedAt: DateTime.now(),
-        );
-        emit(currentState.copyWith(trip: updatedTrip));
-
-        _approvalSubscription?.cancel();
-        _approvalSubscription = _listenToApprovalStreamUseCase(event.tripId).listen(
-          (result) {
-            result.fold(
-              (failure) {},
-              (trip) {
-                if (trip.isClosureApproved) {
-                  add(ApprovalStreamUpdatedEvent(isApproved: true, tripId: event.tripId));
-                }
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _onApprovalStreamUpdated(
-    ApprovalStreamUpdatedEvent event,
-    Emitter<TripState> emit,
-  ) async {
-    if (event.isApproved) {
-      await _finalizeAndEmit(event.tripId!, emit);
-    }
-  }
-
-  Future<void> _finalizeAndEmit(String tripId, Emitter<TripState> emit) async {
-    _approvalSubscription?.cancel();
-    _stopTimer();
-    _stopLocationTracking();
-    _stopInactivityTimer();
-
-    final result = await _endTripWithZoneCheckUseCase(tripId);
+    final result = await _getDriverTripHistoryUseCase(event.driverId);
 
     result.fold(
-      (failure) {
-        if (failure.message.contains('Permiso') || failure.message.contains('ubicación')) {
-          emit(TripClosureError(message: 'Se requiere permiso de ubicación para finalizar el viaje.'));
-        } else {
-          emit(TripClosureError(message: failure.message));
-        }
-      },
-      (trip) {
-        if (trip.status == TripStatus.pendingApproval) {
-          emit(TripPendingApproval(trip: trip));
-        } else {
-          emit(TripEnded(trip: trip));
-        }
-      },
+      (failure) => emit(TripHistoryError(message: failure.message)),
+      (trips) => emit(TripHistoryLoaded(trips: trips)),
     );
   }
 
   @override
   Future<void> close() {
     _timer?.cancel();
-    _inactivityTimer?.cancel();
     _positionSub?.cancel();
-    _approvalSubscription?.cancel();
     return super.close();
   }
 }

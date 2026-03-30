@@ -10,6 +10,7 @@ import '../../../auth/domain/entities/company_entity.dart';
 import '../../../trips/data/models/trip_model.dart';
 import '../../../trips/domain/entities/trip_entity.dart';
 import '../models/invitation_model.dart';
+import '../models/saved_location_model.dart';
 import 'company_datasource.dart';
 
 class CompanyDatasourceImpl implements CompanyDatasource {
@@ -71,7 +72,6 @@ class CompanyDatasourceImpl implements CompanyDatasource {
     required String phone,
     required String cargo,
   }) async {
-    // 1. Verificar que la cédula no esté registrada en `users`
     final cedulaQuery = await _firestore
         .collection('users')
         .where('cedula', isEqualTo: cedula)
@@ -82,27 +82,21 @@ class CompanyDatasourceImpl implements CompanyDatasource {
       throw const CedulaAlreadyRegisteredException();
     }
 
-    // 2. Generar contraseña temporal segura
     final tempPassword = 'SD${DateTime.now().millisecondsSinceEpoch}!Ab';
 
-    // 3. Crear usuario en Firebase Auth con instancia secundaria para no
-    //    cerrar la sesión activa de la empresa.
     final secondaryApp = await Firebase.initializeApp(
       name: 'secondary_${DateTime.now().millisecondsSinceEpoch}',
       options: Firebase.app().options,
     );
     final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
 
-    String? driverUid;
     try {
-      // Crear usuario con contraseña temporal en la instancia secundaria
       final credential = await secondaryAuth.createUserWithEmailAndPassword(
         email: email,
         password: tempPassword,
       );
-      driverUid = credential.user!.uid;
+      final driverUid = credential.user!.uid;
 
-      // 4. Crear documento en `users`
       await _firestore.collection('users').doc(driverUid).set({
         'name': name,
         'cedula': cedula,
@@ -111,7 +105,6 @@ class CompanyDatasourceImpl implements CompanyDatasource {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 5. Crear vínculo en `company_drivers`
       await _firestore.collection('company_drivers').add({
         'companyId': companyId,
         'driverId': driverUid,
@@ -122,17 +115,13 @@ class CompanyDatasourceImpl implements CompanyDatasource {
         'unlinkedAt': null,
       });
 
-      // 6. Enviar correo de restablecimiento de contraseña DESPUÉS de crear
-      //    el usuario usando la instancia secundaria donde se creó.
       await secondaryAuth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         throw const EmailAlreadyRegisteredException();
       }
-      // Re-lanzar otras excepciones de Firebase
       rethrow;
     } finally {
-      // 7. Siempre eliminar la instancia secundaria para liberar recursos.
       await secondaryApp.delete();
     }
   }
@@ -143,14 +132,11 @@ class CompanyDatasourceImpl implements CompanyDatasource {
   Future<void> sendInvitation({
     required String companyId,
     required String companyName,
-    required String driverCedula,
-    required String cargo,
-    required String phone,
+    required String driverEmail,
   }) async {
-    // 1. Buscar conductor por cédula
     final usersQuery = await _firestore
         .collection('users')
-        .where('cedula', isEqualTo: driverCedula)
+        .where('email', isEqualTo: driverEmail)
         .limit(1)
         .get();
 
@@ -160,8 +146,10 @@ class CompanyDatasourceImpl implements CompanyDatasource {
 
     final driverDoc = usersQuery.docs.first;
     final driverId = driverDoc.id;
+    final driverData = driverDoc.data();
+    final driverName = driverData['name'] as String? ?? '';
 
-    // 2. Verificar que no exista ya una invitación pendiente
+    // Verificar si ya existe una invitación pendiente
     final existingInvitation = await _firestore
         .collection('invitations')
         .where('companyId', isEqualTo: companyId)
@@ -174,7 +162,7 @@ class CompanyDatasourceImpl implements CompanyDatasource {
       throw const InvitationAlreadyExistsException();
     }
 
-    // 3. Verificar que el conductor no esté ya activo en la empresa
+    // Verificar si ya está vinculado activamente
     final existingLink = await _firestore
         .collection('company_drivers')
         .where('companyId', isEqualTo: companyId)
@@ -187,13 +175,14 @@ class CompanyDatasourceImpl implements CompanyDatasource {
       throw const DriverAlreadyLinkedException();
     }
 
-    // 4. Crear la invitación
     await _firestore.collection('invitations').add({
       'companyId': companyId,
       'companyName': companyName,
       'driverId': driverId,
-      'cargo': cargo,
-      'phone': phone,
+      'driverName': driverName,
+      'driverEmail': driverEmail,
+      'cargo': '',
+      'phone': '',
       'status': 'pending',
       'sentAt': FieldValue.serverTimestamp(),
       'resolvedAt': null,
@@ -245,11 +234,79 @@ class CompanyDatasourceImpl implements CompanyDatasource {
     return CompanyModel.fromMap(doc.id, doc.data()!);
   }
 
-  // ── Aprobaciones de Viajes ───────────────────────────────────────────────────
+  // ── Viajes ───────────────────────────────────────────────────────────────────
 
   @override
-  Future<List<TripModel>> getPendingTrips(String companyId) async {
-    // 1. Obtener todos los conductores vinculados y activos de la empresa
+  Future<TripModel> createCompanyTrip({
+    required String companyId,
+    required String driverId,
+    required TripType tripType,
+    required double originLat,
+    required double originLng,
+    required String originAddress,
+    required double destinationLat,
+    required double destinationLng,
+    required String destinationAddress,
+    required DateTime scheduledDepartureTime,
+    required DateTime estimatedArrivalTime,
+    String? tripCode,
+    String? companyName,
+  }) async {
+    // Si no se pasa companyName, lo obtenemos de Firestore
+    String resolvedCompanyName = companyName ?? '';
+    if (resolvedCompanyName.isEmpty) {
+      final companyDoc =
+          await _firestore.collection('companies').doc(companyId).get();
+      if (companyDoc.exists) {
+        resolvedCompanyName =
+            companyDoc.data()!['name'] as String? ?? '';
+      }
+    }
+
+    final tripData = <String, dynamic>{
+      'driverId': driverId,
+      'companyId': companyId,
+      'companyName': resolvedCompanyName,
+      'tripType': _tripTypeToString(tripType),
+      'status': 'scheduled',
+      'hasCameraPermission': false,
+      'originLat': originLat,
+      'originLng': originLng,
+      'originAddress': originAddress,
+      'destinationLat': destinationLat,
+      'destinationLng': destinationLng,
+      'destinationAddress': destinationAddress,
+      'scheduledDepartureTime': Timestamp.fromDate(scheduledDepartureTime),
+      'estimatedArrivalTime': Timestamp.fromDate(estimatedArrivalTime),
+      if (tripCode != null) 'tripCode': tripCode,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    final docRef = await _firestore.collection('trips').add(tripData);
+
+    return TripModel(
+      id: docRef.id,
+      driverId: driverId,
+      companyId: companyId,
+      companyName: resolvedCompanyName,
+      tripType: tripType,
+      status: TripStatus.scheduled,
+      hasCameraPermission: false,
+      originLat: originLat,
+      originLng: originLng,
+      originAddress: originAddress,
+      destinationLat: destinationLat,
+      destinationLng: destinationLng,
+      destinationAddress: destinationAddress,
+      scheduledDepartureTime: scheduledDepartureTime,
+      estimatedArrivalTime: estimatedArrivalTime,
+      tripCode: tripCode,
+    );
+  }
+
+  @override
+  Future<List<TripModel>> getCompanyPendingApprovalTrips(
+      String companyId) async {
     final driversQuery = await _firestore
         .collection('company_drivers')
         .where('companyId', isEqualTo: companyId)
@@ -258,101 +315,221 @@ class CompanyDatasourceImpl implements CompanyDatasource {
 
     if (driversQuery.docs.isEmpty) return [];
 
-    final driverIds = driversQuery.docs.map((d) => d['driverId'] as String).toList();
+    final driverIds =
+        driversQuery.docs.map((d) => d['driverId'] as String).toList();
 
-    // 2. Fragmentar la lista de IDs (Firestore admite máximo 10 en 'whereIn')
-    final List<TripModel> pendingTrips = [];
-    
-    // Firestore solo soporta 10 elementos en IN, agrupamos.
+    final List<TripModel> result = [];
+
     for (var i = 0; i < driverIds.length; i += 10) {
-      final chunk = driverIds.sublist(i, (i + 10) > driverIds.length ? driverIds.length : (i + 10));
-      
+      final chunk = driverIds.sublist(
+          i, (i + 10) > driverIds.length ? driverIds.length : i + 10);
+
       final tripsQuery = await _firestore
           .collection('trips')
           .where('driverId', whereIn: chunk)
-          .where('status', isEqualTo: 'active')
-          // no se puede usar where('closureRequestedAt', isNotEqualTo: null) porque Firebase restringe multiples inegualdades
+          .where('status', isEqualTo: 'pendingApproval')
           .get();
 
-      // Filtramos en cliente por si acaso y verificamos el closureRequestedAt
       for (final doc in tripsQuery.docs) {
-        final data = doc.data();
-        if (data['closureRequestedAt'] != null && data['isClosureApproved'] != true) {
-          pendingTrips.add(TripModel.fromMap(doc.id, data));
-        }
+        result.add(TripModel.fromMap(doc.id, doc.data()));
       }
     }
 
-    // Ordenar por fecha de solicitud de cierre (opcional, en memoria)
-    pendingTrips.sort((a, b) {
-       final aTime = a.closureRequestedAt;
-       final bTime = b.closureRequestedAt;
-       if (aTime == null && bTime == null) return 0;
-       if (aTime == null) return 1;
-       if (bTime == null) return -1;
-       return bTime.compareTo(aTime); // Descendente
+    result.sort((a, b) {
+      final aTime = a.actualEndTime;
+      final bTime = b.actualEndTime;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
     });
 
-    return pendingTrips;
+    return result;
   }
 
   @override
-  Future<void> approveTripClosure(String tripId) async {
-    await _firestore.collection('trips').doc(tripId).update({
-      'isClosureApproved': true,
-    });
-  }
+  Future<List<TripModel>> getCompanyImpedimentTrips(String companyId) async {
+    final driversQuery = await _firestore
+        .collection('company_drivers')
+        .where('companyId', isEqualTo: companyId)
+        .where('status', isEqualTo: 'active')
+        .get();
 
-  @override
-  Future<TripModel> createTripWithDestination({
-    required String companyId,
-    required String driverId,
-    required double destinationLat,
-    required double destinationLng,
-    required String destinationAddress,
-    DateTime? scheduledStartTime,
-  }) async {
-    final now = DateTime.now();
-    final tripData = <String, dynamic>{
-      'driverId': driverId,
-      'companyId': companyId,
-      'startTime': null,
-      'endTime': null,
-      'hasCameraPermission': false,
-      'status': 'pending',
-      'destinationLat': destinationLat,
-      'destinationLng': destinationLng,
-      'destinationAddress': destinationAddress,
-      'isOutOfZone': false,
-      'createdAt': Timestamp.fromDate(now),
-    };
+    if (driversQuery.docs.isEmpty) return [];
 
-    if (scheduledStartTime != null) {
-      tripData['scheduledStartTime'] = Timestamp.fromDate(scheduledStartTime);
+    final driverIds =
+        driversQuery.docs.map((d) => d['driverId'] as String).toList();
+
+    final List<TripModel> result = [];
+
+    for (var i = 0; i < driverIds.length; i += 10) {
+      final chunk = driverIds.sublist(
+          i, (i + 10) > driverIds.length ? driverIds.length : i + 10);
+
+      final tripsQuery = await _firestore
+          .collection('trips')
+          .where('driverId', whereIn: chunk)
+          .where('status', isEqualTo: 'withImpediment')
+          .get();
+
+      for (final doc in tripsQuery.docs) {
+        result.add(TripModel.fromMap(doc.id, doc.data()));
+      }
     }
 
-    final docRef = await _firestore.collection('trips').add(tripData);
+    result.sort((a, b) {
+      final aTime = a.impedimentReportedAt;
+      final bTime = b.impedimentReportedAt;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
 
-    return TripModel(
-      id: docRef.id,
-      driverId: driverId,
-      startTime: now,
-      hasCameraPermission: false,
-      status: TripStatus.pending,
-      destinationLat: destinationLat,
-      destinationLng: destinationLng,
-      destinationAddress: destinationAddress,
-      scheduledStartTime: scheduledStartTime,
-    );
+    return result;
   }
 
   @override
-  Future<void> rejectTripClosure(String tripId) async {
+  Future<void> approveTrip(String tripId) async {
     await _firestore.collection('trips').doc(tripId).update({
-      'status': 'completed',
-      'isClosureApproved': false,
-      'rejectedAt': Timestamp.fromDate(DateTime.now()),
+      'status': 'approved',
     });
   }
-}
 
+  @override
+  Future<void> cancelTrip(String tripId) async {
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'cancelled',
+    });
+  }
+
+  @override
+  Future<void> resolveImpediment(String tripId) async {
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'scheduled',
+      'impedimentCategory': FieldValue.delete(),
+      'impedimentDescription': FieldValue.delete(),
+      'impedimentReportedAt': FieldValue.delete(),
+    });
+  }
+
+  @override
+  Future<List<TripModel>> getCompanyTripHistory(String companyId) async {
+    const historyStatuses = ['approved', 'cancelled', 'completed'];
+    final List<TripModel> result = [];
+
+    for (final status in historyStatuses) {
+      final snapshot = await _firestore
+          .collection('trips')
+          .where('companyId', isEqualTo: companyId)
+          .where('status', isEqualTo: status)
+          .limit(100)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        result.add(TripModel.fromMap(doc.id, doc.data()));
+      }
+    }
+
+    result.sort((a, b) {
+      final aTime = a.actualEndTime;
+      final bTime = b.actualEndTime;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
+
+    return result;
+  }
+
+  @override
+  Future<List<TripModel>> getCompanyScheduledTrips(String companyId) async {
+    // Obtener todos los conductores activos de la empresa
+    final driversQuery = await _firestore
+        .collection('company_drivers')
+        .where('companyId', isEqualTo: companyId)
+        .where('status', isEqualTo: 'active')
+        .get();
+
+    if (driversQuery.docs.isEmpty) return [];
+
+    final driverIds =
+        driversQuery.docs.map((d) => d['driverId'] as String).toList();
+
+    final List<TripModel> result = [];
+
+    // Obtener viajes scheduled en chunks de 10
+    for (var i = 0; i < driverIds.length; i += 10) {
+      final chunk = driverIds.sublist(
+          i, (i + 10) > driverIds.length ? driverIds.length : i + 10);
+
+      final tripsQuery = await _firestore
+          .collection('trips')
+          .where('driverId', whereIn: chunk)
+          .where('status', isEqualTo: 'scheduled')
+          .orderBy('scheduledDepartureTime', descending: true)
+          .get();
+
+      for (final doc in tripsQuery.docs) {
+        result.add(TripModel.fromMap(doc.id, doc.data()));
+      }
+    }
+
+    return result;
+  }
+
+  // ── Ubicaciones guardadas ────────────────────────────────────────────────────
+
+  @override
+  Future<List<SavedLocationModel>> getSavedLocations(String companyId) async {
+    final snapshot = await _firestore
+        .collection('companies')
+        .doc(companyId)
+        .collection('saved_locations')
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => SavedLocationModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  @override
+  Future<void> saveLocation(
+    String companyId,
+    SavedLocationModel location,
+  ) async {
+    await _firestore
+        .collection('companies')
+        .doc(companyId)
+        .collection('saved_locations')
+        .add(location.toMap());
+  }
+
+  @override
+  Future<void> deleteSavedLocation(
+    String companyId,
+    String locationId,
+  ) async {
+    await _firestore
+        .collection('companies')
+        .doc(companyId)
+        .collection('saved_locations')
+        .doc(locationId)
+        .delete();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  static String _tripTypeToString(TripType type) {
+    switch (type) {
+      case TripType.relocation:
+        return 'relocation';
+      case TripType.free:
+        return 'free';
+      case TripType.normal:
+        return 'normal';
+    }
+  }
+}

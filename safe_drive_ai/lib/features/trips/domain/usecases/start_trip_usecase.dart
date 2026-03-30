@@ -14,20 +14,20 @@ class StartTripUseCase implements UseCase<TripEntity, StartTripParams> {
   @override
   Future<Either<Failure, TripEntity>> call(StartTripParams params) =>
       _repository.startTrip(
-        driverId: params.driverId,
+        tripId: params.tripId,
         hasCameraPermission: params.hasCameraPermission,
       );
 }
 
 class StartTripParams extends Equatable {
   const StartTripParams({
-    required this.driverId,
+    required this.tripId,
     required this.hasCameraPermission,
   });
 
-  final String driverId;
+  final String tripId;
   final bool hasCameraPermission;
 
   @override
-  List<Object?> get props => [driverId, hasCameraPermission];
+  List<Object?> get props => [tripId, hasCameraPermission];
 }

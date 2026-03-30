@@ -7,12 +7,12 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../../core/constants/app_colors.dart';
 import '../bloc/trip_bloc.dart';
+import '../bloc/trip_event.dart';
 import '../bloc/trip_state.dart';
-import '../widgets/end_trip_dialog.dart';
+import '../widgets/impediment_dialog.dart';
 
-/// Mapa en vivo con traza azul y overlay de cámara frontal (conductor).
-///
-/// Se muestra como 4to índice en el [IndexedStack] del [DriverHomePage].
+/// Mapa en vivo con traza GPS y overlay de cámara frontal.
+/// Soporta tanto TripInProgress (empresa) como FreeTripInProgress (libre).
 class TripMapPage extends StatefulWidget {
   const TripMapPage({super.key, required this.onClose});
 
@@ -23,11 +23,9 @@ class TripMapPage extends StatefulWidget {
 }
 
 class _TripMapPageState extends State<TripMapPage> {
-  // ── Map ───────────────────────────────────────────────────────────────────
   final MapController _mapController = MapController();
   bool _followDriver = true;
 
-  // ── Front camera (selfie — conductor) ────────────────────────────────────
   CameraController? _frontController;
   bool _frontReady = false;
   bool _frontVisible = true;
@@ -38,11 +36,8 @@ class _TripMapPageState extends State<TripMapPage> {
     _initCamera();
   }
 
-  // ── Camera initialization ─────────────────────────────────────────────────
-
   Future<void> _initCamera() async {
     if (_frontReady) return;
-
     final status = await Permission.camera.status;
     if (!status.isGranted) return;
 
@@ -86,8 +81,6 @@ class _TripMapPageState extends State<TripMapPage> {
     super.dispose();
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
   String _formatElapsed(Duration d) {
     final h = d.inHours.toString().padLeft(2, '0');
     final m = (d.inMinutes % 60).toString().padLeft(2, '0');
@@ -95,37 +88,50 @@ class _TripMapPageState extends State<TripMapPage> {
     return '$h:$m:$s';
   }
 
-  Future<void> _onEndPressed(BuildContext context, String tripId) async {
-    final tripBloc = context.read<TripBloc>();
-
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => BlocProvider.value(
-        value: tripBloc,
-        child: EndTripDialog(tripId: tripId),
-      ),
-    );
-  }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<TripBloc, TripState>(
       listener: (context, state) {
-        if (state is TripActive && state.isNewlyStarted) {
-          // Permission was just granted — re-try camera init
+        if (state is TripInProgress && state.isNewlyStarted) {
           _initCamera();
         }
-        if (state is TripActive && state.route.isNotEmpty && _followDriver) {
-          _mapController.move(state.route.last, _mapController.camera.zoom);
+        if (state is FreeTripInProgress && state.isNewlyStarted) {
+          _initCamera();
+        }
+
+        final route = state is TripInProgress
+            ? state.route
+            : state is FreeTripInProgress
+                ? state.route
+                : null;
+
+        if (route != null && route.isNotEmpty && _followDriver) {
+          _mapController.move(route.last, _mapController.camera.zoom);
         }
       },
       builder: (context, state) {
-        if (state is! TripActive) return _buildNoTripView();
+        if (state is! TripInProgress && state is! FreeTripInProgress) {
+          return _buildNoTripView();
+        }
 
-        final route = state.route;
+        final bool isCompanyTrip = state is TripInProgress;
+        final bool isFreeTrip = state is FreeTripInProgress;
+
+        final List<LatLng> route;
+        final Duration elapsed;
+        final String tripId;
+
+        if (state is TripInProgress) {
+          route = state.route;
+          elapsed = state.elapsed;
+          tripId = state.trip.id;
+        } else {
+          final freeState = state as FreeTripInProgress;
+          route = freeState.route;
+          elapsed = freeState.elapsed;
+          tripId = freeState.trip.id;
+        }
+
         final currentPosition = route.isNotEmpty ? route.last : null;
         final topPadding = MediaQuery.of(context).padding.top;
         final overlayTop = topPadding + 80.0;
@@ -134,7 +140,6 @@ class _TripMapPageState extends State<TripMapPage> {
           backgroundColor: Colors.black,
           body: Stack(
             children: [
-              // ── 1. Map ────────────────────────────────────────────────────
               FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
@@ -175,7 +180,8 @@ class _TripMapPageState extends State<TripMapPage> {
                             decoration: BoxDecoration(
                               color: AppColors.success,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border:
+                                  Border.all(color: Colors.white, width: 2),
                             ),
                           ),
                         ),
@@ -192,7 +198,8 @@ class _TripMapPageState extends State<TripMapPage> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF1565C0),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 3),
+                              border:
+                                  Border.all(color: Colors.white, width: 3),
                               boxShadow: const [
                                 BoxShadow(
                                     color: Colors.black38,
@@ -209,7 +216,7 @@ class _TripMapPageState extends State<TripMapPage> {
                 ],
               ),
 
-              // ── 2. Top bar ────────────────────────────────────────────────
+              // Top bar
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -226,7 +233,9 @@ class _TripMapPageState extends State<TripMapPage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF1B5E20),
+                            color: isFreeTrip
+                                ? const Color(0xFF1B5E20)
+                                : const Color(0xFF0D47A1),
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: const [
                               BoxShadow(
@@ -247,13 +256,17 @@ class _TripMapPageState extends State<TripMapPage> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Text('Viaje en curso  ',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500)),
                               Text(
-                                _formatElapsed(state.elapsed),
+                                isFreeTrip
+                                    ? 'Viaje libre  '
+                                    : 'Viaje empresa  ',
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500),
+                              ),
+                              Text(
+                                _formatElapsed(elapsed),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
@@ -270,7 +283,7 @@ class _TripMapPageState extends State<TripMapPage> {
                 ),
               ),
 
-              // ── 3. Front camera overlay — top-right (conductor/selfie) ────
+              // Camera overlay
               if (_frontReady && _frontController != null)
                 Positioned(
                   top: overlayTop,
@@ -278,16 +291,18 @@ class _TripMapPageState extends State<TripMapPage> {
                   child: _frontVisible
                       ? _CameraOverlay(
                           controller: _frontController!,
-                          onClose: () => setState(() => _frontVisible = false),
+                          onClose: () =>
+                              setState(() => _frontVisible = false),
                         )
                       : _MapButton(
                           icon: Icons.camera_front_outlined,
-                          onTap: () => setState(() => _frontVisible = true),
+                          onTap: () =>
+                              setState(() => _frontVisible = true),
                           tooltip: 'Mostrar cámara',
                         ),
                 ),
 
-              // ── 4. Bottom controls ────────────────────────────────────────
+              // Bottom controls
               Positioned(
                 bottom: 24,
                 left: 16,
@@ -309,11 +324,82 @@ class _TripMapPageState extends State<TripMapPage> {
                           tooltip: 'Centrar en mi posición',
                         ),
                       ),
+                    // Botón impedimento solo para viaje de empresa
+                    if (isCompanyTrip)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              final tripBloc = context.read<TripBloc>();
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => BlocProvider.value(
+                                  value: tripBloc,
+                                  child: ImpedimentDialog(tripId: tripId),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.warning_amber_rounded,
+                                color: Colors.orange, size: 18),
+                            label: const Text(
+                              'Reportar Impedimento',
+                              style: TextStyle(color: Colors.orange),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.orange),
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      ),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: () => _onEndPressed(context, state.trip.id),
+                        onPressed: () {
+                          final tripBloc = context.read<TripBloc>();
+                          showDialog<bool>(
+                            context: context,
+                            builder: (_) => BlocProvider.value(
+                              value: tripBloc,
+                              child: AlertDialog(
+                                title: const Text('Finalizar Viaje'),
+                                content: Text(isCompanyTrip
+                                    ? 'El viaje quedará en espera de aprobación por la empresa.'
+                                    : '¿Deseas finalizar el viaje libre?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.of(context).pop(true);
+                                      if (isCompanyTrip) {
+                                        tripBloc.add(EndTrip(tripId: tripId));
+                                      } else {
+                                        tripBloc
+                                            .add(EndFreeTrip(tripId: tripId));
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.error,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('Finalizar'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                         icon: const Icon(Icons.stop),
                         label: const Text('Finalizar Viaje',
                             style: TextStyle(
@@ -363,14 +449,8 @@ class _TripMapPageState extends State<TripMapPage> {
   }
 }
 
-// ── Camera overlay ────────────────────────────────────────────────────────────
-
 class _CameraOverlay extends StatelessWidget {
-  const _CameraOverlay({
-    required this.controller,
-    required this.onClose,
-  });
-
+  const _CameraOverlay({required this.controller, required this.onClose});
   final CameraController controller;
   final VoidCallback onClose;
 
@@ -390,10 +470,7 @@ class _CameraOverlay extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Transform.scale(
-            scaleX: -1.0, // mirror for selfie
-            child: CameraPreview(controller),
-          ),
+          Transform.scale(scaleX: -1.0, child: CameraPreview(controller)),
           Positioned(
             top: 4,
             right: 4,
@@ -420,11 +497,7 @@ class _CameraOverlay extends StatelessWidget {
               child: const Text(
                 'Conductor',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w500),
               ),
             ),
           ),
@@ -434,15 +507,8 @@ class _CameraOverlay extends StatelessWidget {
   }
 }
 
-// ── Shared map button ─────────────────────────────────────────────────────────
-
 class _MapButton extends StatelessWidget {
-  const _MapButton({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-  });
-
+  const _MapButton({required this.icon, required this.onTap, required this.tooltip});
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;

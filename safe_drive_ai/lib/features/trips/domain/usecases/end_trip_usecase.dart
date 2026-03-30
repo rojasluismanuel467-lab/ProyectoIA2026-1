@@ -6,6 +6,7 @@ import '../../../../core/usecases/usecase.dart';
 import '../entities/trip_entity.dart';
 import '../repositories/trip_repository.dart';
 
+/// Finaliza un viaje de empresa — pasa a `pendingApproval`.
 class EndTripUseCase implements UseCase<TripEntity, EndTripParams> {
   const EndTripUseCase(this._repository);
 
@@ -13,7 +14,7 @@ class EndTripUseCase implements UseCase<TripEntity, EndTripParams> {
 
   @override
   Future<Either<Failure, TripEntity>> call(EndTripParams params) =>
-      _repository.endTrip(params.tripId);
+      _repository.endCompanyTrip(params.tripId);
 }
 
 class EndTripParams extends Equatable {

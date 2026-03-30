@@ -12,10 +12,26 @@ import '../../domain/usecases/get_trip_route_usecase.dart';
 /// Pantalla de resumen del viaje mostrada automáticamente al finalizar.
 /// Incluye mapa con la ruta completa.
 class TripSummaryPage extends StatefulWidget {
-  const TripSummaryPage({super.key, this.trip});
+  const TripSummaryPage({
+    super.key,
+    this.trip,
+    this.showDriverInfo = false,
+    this.driverName,
+    this.driverPhone,
+    this.driverIdNumber,
+  });
 
   /// Trip entity - puede ser null si se cerró por PIN/aprobación remota
   final TripEntity? trip;
+  
+  /// Si true, muestra información completa del conductor (para empresa)
+  /// Si false, muestra solo nombre de la empresa (para conductor)
+  final bool showDriverInfo;
+  
+  /// Datos del conductor (solo para vista de empresa)
+  final String? driverName;
+  final String? driverPhone;
+  final String? driverIdNumber;
 
   @override
   State<TripSummaryPage> createState() => _TripSummaryPageState();
@@ -154,19 +170,57 @@ class _TripSummaryPageState extends State<TripSummaryPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              
+              // ── Código del viaje ─────────────────────────────────────────
+              if (_trip!.tripCode != null) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.confirmation_number_outlined,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _trip!.tripCode!,
+                        style: AppTypography.titleMedium.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              
               const SizedBox(height: 28),
 
               // ── Stats ──────────────────────────────────────────────────────
               _SummaryRow(
                 icon: Icons.play_circle_outline,
                 label: 'Inicio',
-                value: _formatDateTime(_trip!.startTime),
+                value: _trip!.actualStartTime != null
+                    ? _formatDateTime(_trip!.actualStartTime!)
+                    : '—',
               ),
               const Divider(height: 24),
               _SummaryRow(
                 icon: Icons.stop_circle_outlined,
                 label: 'Fin',
-                value: _formatDateTime(_trip!.endTime!),
+                value: _trip!.actualEndTime != null
+                    ? _formatDateTime(_trip!.actualEndTime!)
+                    : '—',
               ),
               const Divider(height: 24),
               _SummaryRow(
@@ -185,6 +239,23 @@ class _TripSummaryPageState extends State<TripSummaryPage> {
                     ? AppColors.success
                     : AppColors.warning,
               ),
+
+              // ── Información de empresa/conductor ─────────────────────────
+              if (_trip!.isCompanyTrip) ...[
+                const Divider(height: 24),
+                if (widget.showDriverInfo)
+                  // Vista de la empresa - muestra datos completos del conductor
+                  _DriverInfoSection(
+                    driverName: widget.driverName ?? 'Cargando...',
+                    driverPhone: widget.driverPhone,
+                    driverIdNumber: widget.driverIdNumber,
+                  )
+                else
+                  // Vista del conductor - muestra solo nombre de la empresa
+                  _CompanyInfoSection(
+                    companyName: _trip!.companyName ?? 'Empresa',
+                  ),
+              ],
 
               const SizedBox(height: 28),
 
@@ -353,6 +424,189 @@ class _SummaryRow extends StatelessWidget {
                   color: valueColor ?? AppColors.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Sección de información de la empresa (para conductor) ────────────────────
+
+class _CompanyInfoSection extends StatelessWidget {
+  const _CompanyInfoSection({required this.companyName});
+
+  final String companyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.business,
+              color: AppColors.textOnPrimary,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Empresa',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  companyName,
+                  style: AppTypography.titleMedium.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sección de información del conductor (para empresa) ──────────────────────
+
+class _DriverInfoSection extends StatelessWidget {
+  const _DriverInfoSection({
+    required this.driverName,
+    this.driverPhone,
+    this.driverIdNumber,
+  });
+
+  final String driverName;
+  final String? driverPhone;
+  final String? driverIdNumber;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Información del conductor',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _InfoRow(
+            icon: Icons.badge_outlined,
+            label: 'Nombre',
+            value: driverName,
+          ),
+          if (driverIdNumber != null && driverIdNumber!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.credit_card_outlined,
+              label: 'Cédula',
+              value: driverIdNumber!,
+            ),
+          ],
+          if (driverPhone != null && driverPhone!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.phone_outlined,
+              label: 'Teléfono',
+              value: driverPhone!,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.textSecondary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],

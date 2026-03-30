@@ -1,85 +1,176 @@
 import 'package:equatable/equatable.dart';
 
-enum TripStatus { active, pending, pendingApproval, onBreak, completed }
+enum TripType { normal, relocation, free }
+
+enum TripStatus {
+  // Viajes de empresa
+  scheduled,
+  inProgress,
+  pendingApproval,
+  approved,
+  cancelled,
+  withImpediment,
+  // Viajes libres
+  completed,
+}
+
+enum ImpedimentCategory {
+  flatTire,
+  weather,
+  accident,
+  mechanical,
+  other,
+}
+
+extension ImpedimentCategoryLabel on ImpedimentCategory {
+  String get label {
+    switch (this) {
+      case ImpedimentCategory.flatTire:
+        return 'Llanta pinchada';
+      case ImpedimentCategory.weather:
+        return 'Condiciones climáticas';
+      case ImpedimentCategory.accident:
+        return 'Accidente de tránsito';
+      case ImpedimentCategory.mechanical:
+        return 'Falla mecánica';
+      case ImpedimentCategory.other:
+        return 'Otro';
+    }
+  }
+}
 
 class TripEntity extends Equatable {
   const TripEntity({
     required this.id,
     required this.driverId,
-    required this.startTime,
-    required this.hasCameraPermission,
+    required this.tripType,
     required this.status,
-    this.endTime,
-    this.closureRequestedAt,
-    this.isClosureApproved = false,
+    required this.hasCameraPermission,
+    this.companyId,
+    this.companyName,
+    this.originLat,
+    this.originLng,
+    this.originAddress,
     this.destinationLat,
     this.destinationLng,
     this.destinationAddress,
-    this.isOutOfZone = false,
-    this.scheduledStartTime,
+    this.scheduledDepartureTime,
+    this.estimatedArrivalTime,
+    this.actualStartTime,
+    this.actualEndTime,
+    this.impedimentCategory,
+    this.impedimentDescription,
+    this.impedimentReportedAt,
+    this.sequenceOrder,
+    this.tripCode,
   });
 
   final String id;
   final String driverId;
-  final DateTime startTime;
-  final DateTime? endTime;
-  final bool hasCameraPermission;
+  final TripType tripType;
   final TripStatus status;
-  final DateTime? closureRequestedAt;
-  final bool isClosureApproved;
+  final bool hasCameraPermission;
+
+  // Company trip fields
+  final String? companyId;
+  final String? companyName;
+
+  // Route
+  final double? originLat;
+  final double? originLng;
+  final String? originAddress;
+
+  // Trip code (user-friendly ID)
+  final String? tripCode;
   final double? destinationLat;
   final double? destinationLng;
   final String? destinationAddress;
-  final bool isOutOfZone;
-  final DateTime? scheduledStartTime;
 
+  // Scheduling
+  final DateTime? scheduledDepartureTime;
+  final DateTime? estimatedArrivalTime;
+  final DateTime? actualStartTime;
+  final DateTime? actualEndTime;
+
+  // Impediment
+  final ImpedimentCategory? impedimentCategory;
+  final String? impedimentDescription;
+  final DateTime? impedimentReportedAt;
+
+  // Sequence
+  final int? sequenceOrder;
+
+  // ── Computed ────────────────────────────────────────────────────────────────
+
+  bool get isCompanyTrip => tripType != TripType.free;
+  bool get isFreeTrip => tripType == TripType.free;
+  bool get isRelocation => tripType == TripType.relocation;
+
+  bool get hasOrigin => originLat != null && originLng != null;
   bool get hasDestination => destinationLat != null && destinationLng != null;
 
-  bool get isScheduled => scheduledStartTime != null;
+  bool get canBeStarted =>
+      status == TripStatus.scheduled &&
+      impedimentCategory == null;
 
-  bool get canStartNow {
-    if (scheduledStartTime == null) return true;
-    return DateTime.now().isAfter(scheduledStartTime!) || 
-           DateTime.now().isAtSameMomentAs(scheduledStartTime!);
-  }
-
-  bool get isPending => status == TripStatus.pending;
-  bool get isActive => status == TripStatus.active;
+  bool get isActive => status == TripStatus.inProgress;
 
   Duration get elapsed {
-    final end = endTime ?? DateTime.now();
-    return end.difference(startTime);
+    final start = actualStartTime;
+    if (start == null) return Duration.zero;
+    final end = actualEndTime ?? DateTime.now();
+    return end.difference(start);
   }
 
   TripEntity copyWith({
     String? id,
     String? driverId,
-    DateTime? startTime,
-    DateTime? endTime,
-    bool? hasCameraPermission,
+    TripType? tripType,
     TripStatus? status,
-    DateTime? closureRequestedAt,
-    bool? isClosureApproved,
+    bool? hasCameraPermission,
+    String? companyId,
+    String? companyName,
+    double? originLat,
+    double? originLng,
+    String? originAddress,
     double? destinationLat,
     double? destinationLng,
     String? destinationAddress,
-    bool? isOutOfZone,
-    DateTime? scheduledStartTime,
+    DateTime? scheduledDepartureTime,
+    DateTime? estimatedArrivalTime,
+    DateTime? actualStartTime,
+    DateTime? actualEndTime,
+    ImpedimentCategory? impedimentCategory,
+    String? impedimentDescription,
+    DateTime? impedimentReportedAt,
+    int? sequenceOrder,
+    String? tripCode,
   }) {
     return TripEntity(
       id: id ?? this.id,
       driverId: driverId ?? this.driverId,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      hasCameraPermission: hasCameraPermission ?? this.hasCameraPermission,
+      tripType: tripType ?? this.tripType,
       status: status ?? this.status,
-      closureRequestedAt: closureRequestedAt ?? this.closureRequestedAt,
-      isClosureApproved: isClosureApproved ?? this.isClosureApproved,
+      hasCameraPermission: hasCameraPermission ?? this.hasCameraPermission,
+      companyId: companyId ?? this.companyId,
+      companyName: companyName ?? this.companyName,
+      originLat: originLat ?? this.originLat,
+      originLng: originLng ?? this.originLng,
+      originAddress: originAddress ?? this.originAddress,
       destinationLat: destinationLat ?? this.destinationLat,
       destinationLng: destinationLng ?? this.destinationLng,
       destinationAddress: destinationAddress ?? this.destinationAddress,
-      isOutOfZone: isOutOfZone ?? this.isOutOfZone,
-      scheduledStartTime: scheduledStartTime ?? this.scheduledStartTime,
+      scheduledDepartureTime:
+          scheduledDepartureTime ?? this.scheduledDepartureTime,
+      estimatedArrivalTime: estimatedArrivalTime ?? this.estimatedArrivalTime,
+      actualStartTime: actualStartTime ?? this.actualStartTime,
+      actualEndTime: actualEndTime ?? this.actualEndTime,
+      impedimentCategory: impedimentCategory ?? this.impedimentCategory,
+      impedimentDescription:
+          impedimentDescription ?? this.impedimentDescription,
+      impedimentReportedAt: impedimentReportedAt ?? this.impedimentReportedAt,
+      sequenceOrder: sequenceOrder ?? this.sequenceOrder,
+      tripCode: tripCode ?? this.tripCode,
     );
   }
 
@@ -87,16 +178,25 @@ class TripEntity extends Equatable {
   List<Object?> get props => [
         id,
         driverId,
-        startTime,
-        endTime,
-        hasCameraPermission,
+        tripType,
         status,
-        closureRequestedAt,
-        isClosureApproved,
+        hasCameraPermission,
+        companyId,
+        companyName,
+        originLat,
+        originLng,
+        originAddress,
         destinationLat,
         destinationLng,
         destinationAddress,
-        isOutOfZone,
-        scheduledStartTime,
+        scheduledDepartureTime,
+        estimatedArrivalTime,
+        actualStartTime,
+        actualEndTime,
+        impedimentCategory,
+        impedimentDescription,
+        impedimentReportedAt,
+        sequenceOrder,
+        tripCode,
       ];
 }

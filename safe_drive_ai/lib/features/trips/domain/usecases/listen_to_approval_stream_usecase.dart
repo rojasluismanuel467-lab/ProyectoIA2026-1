@@ -1,15 +1,2 @@
-import 'package:dartz/dartz.dart';
-
-import '../../../../core/errors/failures.dart';
-import '../../domain/entities/trip_entity.dart';
-import '../repositories/trip_repository.dart';
-
-class ListenToApprovalStreamUseCase {
-  final TripRepository repository;
-
-  ListenToApprovalStreamUseCase(this.repository);
-
-  Stream<Either<Failure, TripEntity>> call(String tripId) {
-    return repository.listenToApprovalStream(tripId);
-  }
-}
+// Eliminado en rediseño de viajes — marzo 2026.
+// El stream de aprobación ya no existe en el nuevo modelo de estados.

@@ -57,6 +57,7 @@ class _CompanyDriversPageState extends State<CompanyDriversPage> {
               content: Text(state.message),
               backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         } else if (state is CompanyError) {
@@ -65,6 +66,7 @@ class _CompanyDriversPageState extends State<CompanyDriversPage> {
               content: Text(state.message),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         }

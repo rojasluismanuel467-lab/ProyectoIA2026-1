@@ -10,29 +10,35 @@ abstract class TripState extends Equatable {
   List<Object?> get props => [];
 }
 
+/// Estado inicial antes de cualquier carga.
 class TripInitial extends TripState {
   const TripInitial();
 }
 
+/// Operación asíncrona en progreso.
 class TripLoading extends TripState {
   const TripLoading();
 }
 
-class TripIdle extends TripState {
-  const TripIdle();
-}
+/// Lista de viajes scheduled cargada; no hay viaje en progreso.
+class TripListLoaded extends TripState {
+  const TripListLoaded({
+    required this.scheduledTrips,
+    this.hasActiveImpediment = false,
+  });
 
-class TripPending extends TripState {
-  const TripPending({required this.trip});
+  final List<TripEntity> scheduledTrips;
 
-  final TripEntity trip;
+  /// true si alguno de los viajes está en estado withImpediment — bloquea el inicio.
+  final bool hasActiveImpediment;
 
   @override
-  List<Object?> get props => [trip];
+  List<Object?> get props => [scheduledTrips, hasActiveImpediment];
 }
 
-class TripActive extends TripState {
-  const TripActive({
+/// Hay un viaje de empresa en progreso.
+class TripInProgress extends TripState {
+  const TripInProgress({
     required this.trip,
     required this.elapsed,
     this.route = const [],
@@ -41,24 +47,21 @@ class TripActive extends TripState {
 
   final TripEntity trip;
   final Duration elapsed;
-
-  /// GPS points accumulated since the trip started (or since app resumed).
   final List<LatLng> route;
 
-  /// `true` only on the very first emission after [TripStartRequested] succeeds.
-  /// Used by [DriverHomePage] to auto-open the map exactly once.
+  /// true solo en la primera emisión al iniciar — abre el mapa automáticamente.
   final bool isNewlyStarted;
 
-  TripActive copyWith({
+  TripInProgress copyWith({
     TripEntity? trip,
     Duration? elapsed,
     List<LatLng>? route,
   }) {
-    return TripActive(
+    return TripInProgress(
       trip: trip ?? this.trip,
       elapsed: elapsed ?? this.elapsed,
       route: route ?? this.route,
-      isNewlyStarted: false, // never true after the initial emission
+      isNewlyStarted: false,
     );
   }
 
@@ -66,14 +69,7 @@ class TripActive extends TripState {
   List<Object?> get props => [trip, elapsed, route, isNewlyStarted];
 }
 
-class TripEnded extends TripState {
-  const TripEnded({required this.trip});
-  final TripEntity trip;
-
-  @override
-  List<Object?> get props => [trip];
-}
-
+/// El conductor finalizó el viaje de empresa; espera aprobación.
 class TripPendingApproval extends TripState {
   const TripPendingApproval({required this.trip});
   final TripEntity trip;
@@ -82,6 +78,61 @@ class TripPendingApproval extends TripState {
   List<Object?> get props => [trip];
 }
 
+/// El conductor reportó un impedimento.
+class TripWithImpediment extends TripState {
+  const TripWithImpediment({required this.trip});
+  final TripEntity trip;
+
+  @override
+  List<Object?> get props => [trip];
+}
+
+/// Hay un viaje libre en progreso.
+class FreeTripInProgress extends TripState {
+  const FreeTripInProgress({
+    required this.trip,
+    required this.elapsed,
+    this.route = const [],
+    this.isNewlyStarted = false,
+  });
+
+  final TripEntity trip;
+  final Duration elapsed;
+  final List<LatLng> route;
+  final bool isNewlyStarted;
+
+  FreeTripInProgress copyWith({
+    TripEntity? trip,
+    Duration? elapsed,
+    List<LatLng>? route,
+  }) {
+    return FreeTripInProgress(
+      trip: trip ?? this.trip,
+      elapsed: elapsed ?? this.elapsed,
+      route: route ?? this.route,
+      isNewlyStarted: false,
+    );
+  }
+
+  @override
+  List<Object?> get props => [trip, elapsed, route, isNewlyStarted];
+}
+
+/// No hay nada en curso (estado neutro para el conductor).
+class TripIdle extends TripState {
+  const TripIdle();
+}
+
+/// El viaje terminó (empresa aprobó o viaje libre completado).
+class TripEnded extends TripState {
+  const TripEnded({required this.trip});
+  final TripEntity trip;
+
+  @override
+  List<Object?> get props => [trip];
+}
+
+/// Error genérico del módulo de viajes.
 class TripError extends TripState {
   const TripError({required this.message});
   final String message;
@@ -90,19 +141,27 @@ class TripError extends TripState {
   List<Object?> get props => [message];
 }
 
-// --- Cierre de viaje ---
+/// Historial de viajes terminados del conductor cargado correctamente.
+/// La lista puede estar vacía si el conductor no tiene viajes finalizados.
+class TripHistoryLoaded extends TripState {
+  const TripHistoryLoaded({required this.trips});
+  final List<TripEntity> trips;
 
-class TripClosureLoading extends TripState {}
-
-class TripClosureRequested extends TripState {}
-
-class TripFinalizedSuccess extends TripState {
-  const TripFinalizedSuccess();
+  @override
+  List<Object?> get props => [trips];
 }
 
-class TripClosureError extends TripState {
+/// Estado de carga exclusivo para el historial, para no interferir con el
+/// [TripLoading] que usan los demás flujos.
+class TripHistoryLoading extends TripState {
+  const TripHistoryLoading();
+}
+
+/// Error exclusivo para la carga del historial.
+class TripHistoryError extends TripState {
+  const TripHistoryError({required this.message});
   final String message;
-  const TripClosureError({required this.message});
+
   @override
   List<Object?> get props => [message];
 }

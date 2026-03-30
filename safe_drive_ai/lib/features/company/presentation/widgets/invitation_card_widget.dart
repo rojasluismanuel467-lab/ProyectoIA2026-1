@@ -124,7 +124,9 @@ class InvitationCardWidget extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        invitation.cargo,
+                        invitation.driverName.isNotEmpty
+                            ? invitation.driverName
+                            : 'Conductor',
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 15,
@@ -135,13 +137,13 @@ class InvitationCardWidget extends StatelessWidget {
                       Row(
                         children: [
                           const Icon(
-                            Icons.phone_outlined,
+                            Icons.email_outlined,
                             size: 13,
                             color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            invitation.phone,
+                            invitation.driverEmail,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 13,

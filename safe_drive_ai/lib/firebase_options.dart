@@ -53,11 +53,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBst_PyenpadDAXIgUrWPluTJR8s-GExyA',
-    appId: '1:249112927184:android:b074ea7821031ad4cb77d5',
-    messagingSenderId: '249112927184',
-    projectId: 'bombastik-e516e',
-    databaseURL: 'https://bombastik-e516e-default-rtdb.firebaseio.com',
-    storageBucket: 'bombastik-e516e.firebasestorage.app',
+    apiKey: 'AIzaSyCfe1PuiqO96AE_r028E4Sq2WkoRb-4KAw',
+    appId: '1:250249562129:android:15221b5b0bcf974cbd09b0',
+    messagingSenderId: '250249562129',
+    projectId: 'db-safedrive-ai-proyectofinal',
+    storageBucket: 'db-safedrive-ai-proyectofinal.firebasestorage.app',
   );
+
 }

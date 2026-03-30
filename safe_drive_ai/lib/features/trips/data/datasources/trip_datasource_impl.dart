@@ -12,256 +12,20 @@ class TripDatasourceImpl implements TripDatasource {
 
   final FirebaseFirestore _firestore;
 
+  // ── Conductor: viajes programados ──────────────────────────────────────────
+
   @override
-  Future<TripModel> startTrip({
-    required String driverId,
-    required bool hasCameraPermission,
-  }) async {
-    // Check for existing active trips
-    final existing = await _firestore
+  Future<List<TripModel>> getDriverScheduledTrips(String driverId) async {
+    final snapshot = await _firestore
         .collection('trips')
         .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
+        .where('status', isEqualTo: 'scheduled')
+        .orderBy('scheduledDepartureTime')
         .get();
 
-    if (existing.docs.isNotEmpty) {
-      throw const TripAlreadyActiveException();
-    }
-
-    // Check for pending trips - accept the first one
-    final pending = await _firestore
-        .collection('trips')
-        .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'pending')
-        .limit(1)
-        .get();
-
-    if (pending.docs.isNotEmpty) {
-      // Accept the pending trip - change status to active
-      final docRef = pending.docs.first.reference;
-      final now = DateTime.now();
-      await docRef.update({
-        'startTime': Timestamp.fromDate(now),
-        'hasCameraPermission': hasCameraPermission,
-        'status': 'active',
-      });
-
-      final data = pending.docs.first.data();
-      return TripModel(
-        id: docRef.id,
-        driverId: driverId,
-        startTime: now,
-        hasCameraPermission: hasCameraPermission,
-        status: TripStatus.active,
-      );
-    }
-
-    // No existing trip - create a new one
-    final now = DateTime.now();
-    final docRef = await _firestore.collection('trips').add({
-      'driverId': driverId,
-      'startTime': Timestamp.fromDate(now),
-      'endTime': null,
-      'hasCameraPermission': hasCameraPermission,
-      'status': 'active',
-    });
-
-    return TripModel(
-      id: docRef.id,
-      driverId: driverId,
-      startTime: now,
-      hasCameraPermission: hasCameraPermission,
-      status: TripStatus.active,
-    );
-  }
-
-  @override
-  Future<TripModel> endTrip(String tripId) async {
-    final doc = await _firestore.collection('trips').doc(tripId).get();
-    if (!doc.exists) {
-      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
-    }
-
-    final now = DateTime.now();
-    await _firestore.collection('trips').doc(tripId).update({
-      'endTime': Timestamp.fromDate(now),
-      'status': 'completed',
-    });
-
-    final data = doc.data()!;
-    return TripModel(
-      id: tripId,
-      driverId: data['driverId'] as String,
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: now,
-      hasCameraPermission: data['hasCameraPermission'] as bool? ?? false,
-      status: TripStatus.completed,
-    );
-  }
-
-  @override
-  Future<TripModel> endTripWithZoneCheck({
-    required String tripId,
-    required double currentLat,
-    required double currentLng,
-  }) async {
-    final doc = await _firestore.collection('trips').doc(tripId).get();
-    if (!doc.exists) {
-      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
-    }
-
-    final data = doc.data()!;
-    final destinationLat = data['destinationLat'] as double?;
-    final destinationLng = data['destinationLng'] as double?;
-
-    final now = DateTime.now();
-
-    if (destinationLat != null && destinationLng != null) {
-      final distance = _calculateDistance(
-        currentLat,
-        currentLng,
-        destinationLat,
-        destinationLng,
-      );
-
-      const double zoneRadiusMeters = 100;
-
-      if (distance <= zoneRadiusMeters) {
-        await _firestore.collection('trips').doc(tripId).update({
-          'endTime': Timestamp.fromDate(now),
-          'status': 'completed',
-          'isOutOfZone': false,
-        });
-
-        return TripModel(
-          id: tripId,
-          driverId: data['driverId'] as String,
-          startTime: (data['startTime'] as Timestamp).toDate(),
-          endTime: now,
-          hasCameraPermission: data['hasCameraPermission'] as bool? ?? false,
-          status: TripStatus.completed,
-          destinationLat: destinationLat,
-          destinationLng: destinationLng,
-          isOutOfZone: false,
-        );
-      } else {
-        await _firestore.collection('trips').doc(tripId).update({
-          'endTime': Timestamp.fromDate(now),
-          'status': 'pendingApproval',
-          'isOutOfZone': true,
-        });
-
-        return TripModel(
-          id: tripId,
-          driverId: data['driverId'] as String,
-          startTime: (data['startTime'] as Timestamp).toDate(),
-          endTime: now,
-          hasCameraPermission: data['hasCameraPermission'] as bool? ?? false,
-          status: TripStatus.pendingApproval,
-          destinationLat: destinationLat,
-          destinationLng: destinationLng,
-          destinationAddress: data['destinationAddress'] as String?,
-          isOutOfZone: true,
-        );
-      }
-    }
-
-    await _firestore.collection('trips').doc(tripId).update({
-      'endTime': Timestamp.fromDate(now),
-      'status': 'completed',
-    });
-
-    return TripModel(
-      id: tripId,
-      driverId: data['driverId'] as String,
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: now,
-      hasCameraPermission: data['hasCameraPermission'] as bool? ?? false,
-      status: TripStatus.completed,
-    );
-  }
-
-  double _calculateDistance(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
-    const double earthRadiusMeters = 6371000;
-    final dLat = _toRadians(lat2 - lat1);
-    final dLon = _toRadians(lon2 - lon1);
-    final a = _sin(dLat / 2) * _sin(dLat / 2) +
-        _cos(_toRadians(lat1)) *
-            _cos(_toRadians(lat2)) *
-            _sin(dLon / 2) *
-            _sin(dLon / 2);
-    final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
-    return earthRadiusMeters * c;
-  }
-
-  double _toRadians(double degrees) => degrees * 3.141592653589793 / 180;
-  double _sin(double x) => _taylorSin(x);
-  double _cos(double x) => _taylorCos(x);
-  double _sqrt(double x) => _newtonSqrt(x);
-  double _atan2(double y, double x) => _approxAtan2(y, x);
-
-  double _taylorSin(double x) {
-    x = x % (2 * 3.141592653589793);
-    double result = x;
-    double term = x;
-    for (int i = 1; i <= 10; i++) {
-      term *= -x * x / ((2 * i) * (2 * i + 1));
-      result += term;
-    }
-    return result;
-  }
-
-  double _taylorCos(double x) {
-    x = x % (2 * 3.141592653589793);
-    double result = 1;
-    double term = 1;
-    for (int i = 1; i <= 10; i++) {
-      term *= -x * x / ((2 * i - 1) * (2 * i));
-      result += term;
-    }
-    return result;
-  }
-
-  double _newtonSqrt(double x) {
-    if (x <= 0) return 0;
-    double guess = x / 2;
-    for (int i = 0; i < 20; i++) {
-      guess = (guess + x / guess) / 2;
-    }
-    return guess;
-  }
-
-  double _approxAtan2(double y, double x) {
-    if (x == 0) {
-      if (y > 0) return 3.141592653589793 / 2;
-      if (y < 0) return -3.141592653589793 / 2;
-      return 0;
-    }
-    double atan = _approxAtan(y / x);
-    if (x < 0) {
-      if (y >= 0) return atan + 3.141592653589793;
-      return atan - 3.141592653589793;
-    }
-    return atan;
-  }
-
-  double _approxAtan(double x) {
-    if (x.abs() > 1) {
-      return (x > 0 ? 1 : -1) * (3.141592653589793 / 2 - _approxAtan(1 / x));
-    }
-    double result = x;
-    double term = x;
-    for (int i = 1; i <= 20; i++) {
-      term *= -x * x;
-      result += term / (2 * i + 1);
-    }
-    return result;
+    return snapshot.docs
+        .map((doc) => TripModel.fromMap(doc.id, doc.data()))
+        .toList();
   }
 
   @override
@@ -269,29 +33,342 @@ class TripDatasourceImpl implements TripDatasource {
     final snapshot = await _firestore
         .collection('trips')
         .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'active')
+        .where('status', isEqualTo: 'inProgress')
         .limit(1)
         .get();
 
-    if (snapshot.docs.isNotEmpty) {
-      final doc = snapshot.docs.first;
-      return TripModel.fromMap(doc.id, doc.data());
+    if (snapshot.docs.isEmpty) return null;
+    final doc = snapshot.docs.first;
+    return TripModel.fromMap(doc.id, doc.data());
+  }
+
+  @override
+  Future<TripModel> startTrip({
+    required String tripId,
+    required bool hasCameraPermission,
+  }) async {
+    final doc = await _firestore.collection('trips').doc(tripId).get();
+    if (!doc.exists) {
+      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
     }
 
-    final pendingSnapshot = await _firestore
+    final data = doc.data()!;
+    final status = data['status'] as String?;
+    if (status != 'scheduled') {
+      throw ServerException(
+          'Solo se puede iniciar un viaje en estado scheduled. Estado actual: $status');
+    }
+
+    // Verificar que no haya un viaje con impedimento activo
+    final impedimentQuery = await _firestore
+        .collection('trips')
+        .where('driverId', isEqualTo: data['driverId'] as String)
+        .where('status', isEqualTo: 'withImpediment')
+        .limit(1)
+        .get();
+
+    if (impedimentQuery.docs.isNotEmpty) {
+      throw ServerException(
+          'Hay un viaje con impedimento activo. Resuélvelo antes de iniciar otro.');
+    }
+
+    // Verificar que no haya otro viaje en progreso
+    final inProgressQuery = await _firestore
+        .collection('trips')
+        .where('driverId', isEqualTo: data['driverId'] as String)
+        .where('status', isEqualTo: 'inProgress')
+        .limit(1)
+        .get();
+
+    if (inProgressQuery.docs.isNotEmpty) {
+      throw const TripAlreadyActiveException();
+    }
+
+    final now = DateTime.now();
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'inProgress',
+      'actualStartTime': Timestamp.fromDate(now),
+      'hasCameraPermission': hasCameraPermission,
+    });
+
+    return TripModel.fromMap(tripId, {
+      ...data,
+      'status': 'inProgress',
+      'actualStartTime': Timestamp.fromDate(now),
+      'hasCameraPermission': hasCameraPermission,
+    });
+  }
+
+  @override
+  Future<TripModel> endCompanyTrip(String tripId) async {
+    final doc = await _firestore.collection('trips').doc(tripId).get();
+    if (!doc.exists) {
+      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
+    }
+
+    final now = DateTime.now();
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'pendingApproval',
+      'actualEndTime': Timestamp.fromDate(now),
+    });
+
+    final data = doc.data()!;
+    return TripModel.fromMap(tripId, {
+      ...data,
+      'status': 'pendingApproval',
+      'actualEndTime': Timestamp.fromDate(now),
+    });
+  }
+
+  // ── Conductor: viaje libre ──────────────────────────────────────────────────
+
+  @override
+  Future<TripModel> startFreeTrip({
+    required String driverId,
+    required bool hasCameraPermission,
+  }) async {
+    // Verificar que no haya un viaje en progreso
+    final inProgressQuery = await _firestore
         .collection('trips')
         .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'pending')
+        .where('status', isEqualTo: 'inProgress')
         .limit(1)
         .get();
 
-    if (pendingSnapshot.docs.isNotEmpty) {
-      final doc = pendingSnapshot.docs.first;
-      return TripModel.fromMap(doc.id, doc.data());
+    if (inProgressQuery.docs.isNotEmpty) {
+      throw const TripAlreadyActiveException();
     }
 
-    return null;
+    final now = DateTime.now();
+    final docRef = await _firestore.collection('trips').add({
+      'driverId': driverId,
+      'tripType': 'free',
+      'status': 'inProgress',
+      'hasCameraPermission': hasCameraPermission,
+      'actualStartTime': Timestamp.fromDate(now),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return TripModel(
+      id: docRef.id,
+      driverId: driverId,
+      tripType: TripType.free,
+      status: TripStatus.inProgress,
+      hasCameraPermission: hasCameraPermission,
+      actualStartTime: now,
+    );
   }
+
+  @override
+  Future<TripModel> endFreeTrip(String tripId) async {
+    final doc = await _firestore.collection('trips').doc(tripId).get();
+    if (!doc.exists) {
+      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
+    }
+
+    final now = DateTime.now();
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'completed',
+      'actualEndTime': Timestamp.fromDate(now),
+    });
+
+    final data = doc.data()!;
+    return TripModel.fromMap(tripId, {
+      ...data,
+      'status': 'completed',
+      'actualEndTime': Timestamp.fromDate(now),
+    });
+  }
+
+  // ── Conductor: impedimento ──────────────────────────────────────────────────
+
+  @override
+  Future<TripModel> reportImpediment({
+    required String tripId,
+    required ImpedimentCategory category,
+    String? description,
+  }) async {
+    final doc = await _firestore.collection('trips').doc(tripId).get();
+    if (!doc.exists) {
+      throw DocumentNotFoundException('No se encontró el viaje $tripId.');
+    }
+
+    final now = DateTime.now();
+    final updateData = <String, dynamic>{
+      'status': 'withImpediment',
+      'impedimentCategory': _impedimentCategoryToString(category),
+      'impedimentReportedAt': Timestamp.fromDate(now),
+    };
+    if (description != null && description.isNotEmpty) {
+      updateData['impedimentDescription'] = description;
+    }
+
+    await _firestore.collection('trips').doc(tripId).update(updateData);
+
+    final data = doc.data()!;
+    return TripModel.fromMap(tripId, {
+      ...data,
+      ...updateData,
+    });
+  }
+
+  // ── Empresa ─────────────────────────────────────────────────────────────────
+
+  @override
+  Future<void> approveTrip(String tripId) async {
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'approved',
+    });
+  }
+
+  @override
+  Future<void> cancelTrip(String tripId) async {
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'cancelled',
+    });
+  }
+
+  @override
+  Future<void> resolveImpediment(String tripId) async {
+    await _firestore.collection('trips').doc(tripId).update({
+      'status': 'scheduled',
+      'impedimentCategory': FieldValue.delete(),
+      'impedimentDescription': FieldValue.delete(),
+      'impedimentReportedAt': FieldValue.delete(),
+    });
+  }
+
+  @override
+  Future<TripModel> createCompanyTrip({
+    required String companyId,
+    required String driverId,
+    required TripType tripType,
+    required double originLat,
+    required double originLng,
+    required String originAddress,
+    required double destinationLat,
+    required double destinationLng,
+    required String destinationAddress,
+    required DateTime scheduledDepartureTime,
+    required DateTime estimatedArrivalTime,
+    String? companyName,
+  }) async {
+    final tripData = <String, dynamic>{
+      'driverId': driverId,
+      'companyId': companyId,
+      if (companyName != null) 'companyName': companyName,
+      'tripType': _tripTypeToString(tripType),
+      'status': 'scheduled',
+      'hasCameraPermission': false,
+      'originLat': originLat,
+      'originLng': originLng,
+      'originAddress': originAddress,
+      'destinationLat': destinationLat,
+      'destinationLng': destinationLng,
+      'destinationAddress': destinationAddress,
+      'scheduledDepartureTime': Timestamp.fromDate(scheduledDepartureTime),
+      'estimatedArrivalTime': Timestamp.fromDate(estimatedArrivalTime),
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    final docRef = await _firestore.collection('trips').add(tripData);
+
+    return TripModel(
+      id: docRef.id,
+      driverId: driverId,
+      companyId: companyId,
+      companyName: companyName,
+      tripType: tripType,
+      status: TripStatus.scheduled,
+      hasCameraPermission: false,
+      originLat: originLat,
+      originLng: originLng,
+      originAddress: originAddress,
+      destinationLat: destinationLat,
+      destinationLng: destinationLng,
+      destinationAddress: destinationAddress,
+      scheduledDepartureTime: scheduledDepartureTime,
+      estimatedArrivalTime: estimatedArrivalTime,
+    );
+  }
+
+  @override
+  Future<List<TripModel>> getCompanyPendingApprovalTrips(
+      String companyId) async {
+    final driversQuery = await _firestore
+        .collection('company_drivers')
+        .where('companyId', isEqualTo: companyId)
+        .where('status', isEqualTo: 'active')
+        .get();
+
+    if (driversQuery.docs.isEmpty) return [];
+
+    final driverIds =
+        driversQuery.docs.map((d) => d['driverId'] as String).toList();
+
+    final List<TripModel> result = [];
+
+    for (var i = 0; i < driverIds.length; i += 10) {
+      final chunk = driverIds.sublist(
+          i, (i + 10) > driverIds.length ? driverIds.length : i + 10);
+
+      final tripsQuery = await _firestore
+          .collection('trips')
+          .where('driverId', whereIn: chunk)
+          .where('status', isEqualTo: 'pendingApproval')
+          .get();
+
+      for (final doc in tripsQuery.docs) {
+        result.add(TripModel.fromMap(doc.id, doc.data()));
+      }
+    }
+
+    result.sort((a, b) {
+      final aTime = a.actualEndTime;
+      final bTime = b.actualEndTime;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
+
+    return result;
+  }
+
+  @override
+  Future<List<TripModel>> getCompanyImpedimentTrips(String companyId) async {
+    final driversQuery = await _firestore
+        .collection('company_drivers')
+        .where('companyId', isEqualTo: companyId)
+        .where('status', isEqualTo: 'active')
+        .get();
+
+    if (driversQuery.docs.isEmpty) return [];
+
+    final driverIds =
+        driversQuery.docs.map((d) => d['driverId'] as String).toList();
+
+    final List<TripModel> result = [];
+
+    for (var i = 0; i < driverIds.length; i += 10) {
+      final chunk = driverIds.sublist(
+          i, (i + 10) > driverIds.length ? driverIds.length : i + 10);
+
+      final tripsQuery = await _firestore
+          .collection('trips')
+          .where('driverId', whereIn: chunk)
+          .where('status', isEqualTo: 'withImpediment')
+          .get();
+
+      for (final doc in tripsQuery.docs) {
+        result.add(TripModel.fromMap(doc.id, doc.data()));
+      }
+    }
+
+    return result;
+  }
+
+  // ── Ruta GPS ─────────────────────────────────────────────────────────────────
 
   @override
   Future<void> saveRoutePoint({
@@ -328,47 +405,66 @@ class TripDatasourceImpl implements TripDatasource {
     final snapshot = await _firestore
         .collection('trips')
         .where('driverId', isEqualTo: driverId)
-        .orderBy('startTime', descending: true)
+        .orderBy('scheduledDepartureTime', descending: true)
         .get();
     return snapshot.docs
         .map((doc) => TripModel.fromMap(doc.id, doc.data()))
         .toList();
   }
 
-  // --- Cierre de viaje ---
-
   @override
-  Future<void> requestRemoteClosure(String tripId) async {
-    try {
-      await _firestore.collection('trips').doc(tripId).update({
-        'closureRequestedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      throw ServerException('Error solicitando cierre remoto: $e');
+  Future<List<TripModel>> getDriverTripHistory(String driverId) async {
+    final statuses = ['approved', 'cancelled', 'completed'];
+    final List<TripModel> all = [];
+
+    for (final status in statuses) {
+      final snapshot = await _firestore
+          .collection('trips')
+          .where('driverId', isEqualTo: driverId)
+          .where('status', isEqualTo: status)
+          .get();
+      for (final doc in snapshot.docs) {
+        all.add(TripModel.fromMap(doc.id, doc.data()));
+      }
+    }
+
+    all.sort((a, b) {
+      final aTime = a.actualEndTime;
+      final bTime = b.actualEndTime;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
+
+    return all.take(50).toList();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  static String _tripTypeToString(TripType type) {
+    switch (type) {
+      case TripType.relocation:
+        return 'relocation';
+      case TripType.free:
+        return 'free';
+      case TripType.normal:
+        return 'normal';
     }
   }
 
-  @override
-  Stream<TripModel> listenToApprovalStream(String tripId) {
-    return _firestore
-        .collection('trips')
-        .doc(tripId)
-        .snapshots()
-        .map((snapshot) {
-      if (!snapshot.exists) throw const ServerException('El viaje no existe.');
-      return TripModel.fromMap(snapshot.id, snapshot.data()!);
-    });
-  }
-
-  @override
-  Stream<List<TripModel>> listenToPendingTrips(String driverId) {
-    return _firestore
-        .collection('trips')
-        .where('driverId', isEqualTo: driverId)
-        .where('status', isEqualTo: 'pending')
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TripModel.fromMap(doc.id, doc.data()))
-            .toList());
+  static String _impedimentCategoryToString(ImpedimentCategory cat) {
+    switch (cat) {
+      case ImpedimentCategory.flatTire:
+        return 'flatTire';
+      case ImpedimentCategory.weather:
+        return 'weather';
+      case ImpedimentCategory.accident:
+        return 'accident';
+      case ImpedimentCategory.mechanical:
+        return 'mechanical';
+      case ImpedimentCategory.other:
+        return 'other';
+    }
   }
 }

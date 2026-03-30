@@ -5,7 +5,7 @@ import '../../../../core/errors/failures.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../repositories/company_repository.dart';
 
-/// Envía una invitación a un conductor buscado por su cédula.
+/// Envía una invitación a un conductor buscado por su email.
 class SendInvitationUseCase extends UseCase<void, SendInvitationParams> {
   const SendInvitationUseCase(this._repository);
 
@@ -16,9 +16,7 @@ class SendInvitationUseCase extends UseCase<void, SendInvitationParams> {
     return _repository.sendInvitation(
       companyId: params.companyId,
       companyName: params.companyName,
-      driverCedula: params.driverCedula,
-      cargo: params.cargo,
-      phone: params.phone,
+      driverEmail: params.driverEmail,
     );
   }
 }
@@ -27,23 +25,17 @@ class SendInvitationParams extends Equatable {
   const SendInvitationParams({
     required this.companyId,
     required this.companyName,
-    required this.driverCedula,
-    required this.cargo,
-    required this.phone,
+    required this.driverEmail,
   });
 
   final String companyId;
   final String companyName;
-  final String driverCedula;
-  final String cargo;
-  final String phone;
+  final String driverEmail;
 
   @override
   List<Object?> get props => [
         companyId,
         companyName,
-        driverCedula,
-        cargo,
-        phone,
+        driverEmail,
       ];
 }

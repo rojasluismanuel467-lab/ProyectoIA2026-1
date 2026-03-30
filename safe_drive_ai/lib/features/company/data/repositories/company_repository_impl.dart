@@ -7,13 +7,11 @@ import '../../../auth/domain/entities/company_link_entity.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../trips/domain/entities/trip_entity.dart';
 import '../../domain/entities/invitation_entity.dart';
+import '../../domain/entities/saved_location_entity.dart';
 import '../../domain/repositories/company_repository.dart';
 import '../datasources/company_datasource.dart';
+import '../models/saved_location_model.dart';
 
-/// Implementación concreta del repositorio de empresa.
-///
-/// Su única responsabilidad es traducir excepciones de la capa data
-/// en Failures del dominio. No contiene lógica de negocio propia.
 class CompanyRepositoryImpl implements CompanyRepository {
   const CompanyRepositoryImpl(this._datasource);
 
@@ -65,24 +63,20 @@ class CompanyRepositoryImpl implements CompanyRepository {
   Future<Either<Failure, void>> sendInvitation({
     required String companyId,
     required String companyName,
-    required String driverCedula,
-    required String cargo,
-    required String phone,
+    required String driverEmail,
   }) async {
     try {
       await _datasource.sendInvitation(
         companyId: companyId,
         companyName: companyName,
-        driverCedula: driverCedula,
-        cargo: cargo,
-        phone: phone,
+        driverEmail: driverEmail,
       );
       return const Right(null);
     } on DriverNotFoundException {
       return const Left(
         ValidationFailure(
             message:
-                'No existe ningún conductor registrado con esa cédula. Debes registrarlo primero.'),
+                'No existe ningún conductor registrado con ese email. Debes registrarlo primero.'),
       );
     } on InvitationAlreadyExistsException {
       return const Left(InvitationAlreadyExistsFailure());
@@ -175,12 +169,52 @@ class CompanyRepositoryImpl implements CompanyRepository {
     }
   }
 
-  // ── Aprobaciones de Viajes ───────────────────────────────────────────────────
+  // ── Viajes ───────────────────────────────────────────────────────────────────
 
   @override
-  Future<Either<Failure, List<TripEntity>>> getPendingTrips(String companyId) async {
+  Future<Either<Failure, TripEntity>> createCompanyTrip({
+    required String companyId,
+    required String driverId,
+    required TripType tripType,
+    required double originLat,
+    required double originLng,
+    required String originAddress,
+    required double destinationLat,
+    required double destinationLng,
+    required String destinationAddress,
+    required DateTime scheduledDepartureTime,
+    required DateTime estimatedArrivalTime,
+    String? tripCode,
+  }) async {
     try {
-      final trips = await _datasource.getPendingTrips(companyId);
+      final trip = await _datasource.createCompanyTrip(
+        companyId: companyId,
+        driverId: driverId,
+        tripType: tripType,
+        originLat: originLat,
+        originLng: originLng,
+        originAddress: originAddress,
+        destinationLat: destinationLat,
+        destinationLng: destinationLng,
+        destinationAddress: destinationAddress,
+        scheduledDepartureTime: scheduledDepartureTime,
+        estimatedArrivalTime: estimatedArrivalTime,
+        tripCode: tripCode,
+      );
+      return Right(trip);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (e) {
+      return Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<TripEntity>>> getCompanyPendingApprovalTrips(
+      String companyId) async {
+    try {
+      final trips =
+          await _datasource.getCompanyPendingApprovalTrips(companyId);
       return Right(trips);
     } on FirestoreException catch (e) {
       return Left(FirestoreFailure(message: e.message));
@@ -190,9 +224,22 @@ class CompanyRepositoryImpl implements CompanyRepository {
   }
 
   @override
-  Future<Either<Failure, void>> approveTripClosure(String tripId) async {
+  Future<Either<Failure, List<TripEntity>>> getCompanyImpedimentTrips(
+      String companyId) async {
     try {
-      await _datasource.approveTripClosure(tripId);
+      final trips = await _datasource.getCompanyImpedimentTrips(companyId);
+      return Right(trips);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> approveTrip(String tripId) async {
+    try {
+      await _datasource.approveTrip(tripId);
       return const Right(null);
     } on FirestoreException catch (e) {
       return Left(FirestoreFailure(message: e.message));
@@ -202,9 +249,9 @@ class CompanyRepositoryImpl implements CompanyRepository {
   }
 
   @override
-  Future<Either<Failure, void>> rejectTripClosure(String tripId) async {
+  Future<Either<Failure, void>> cancelTrip(String tripId) async {
     try {
-      await _datasource.rejectTripClosure(tripId);
+      await _datasource.cancelTrip(tripId);
       return const Right(null);
     } on FirestoreException catch (e) {
       return Left(FirestoreFailure(message: e.message));
@@ -214,24 +261,92 @@ class CompanyRepositoryImpl implements CompanyRepository {
   }
 
   @override
-  Future<Either<Failure, TripEntity>> createTripWithDestination({
-    required String companyId,
-    required String driverId,
-    required double destinationLat,
-    required double destinationLng,
-    required String destinationAddress,
-    DateTime? scheduledStartTime,
-  }) async {
+  Future<Either<Failure, void>> resolveImpediment(String tripId) async {
     try {
-      final trip = await _datasource.createTripWithDestination(
-        companyId: companyId,
-        driverId: driverId,
-        destinationLat: destinationLat,
-        destinationLng: destinationLng,
-        destinationAddress: destinationAddress,
-        scheduledStartTime: scheduledStartTime,
+      await _datasource.resolveImpediment(tripId);
+      return const Right(null);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<TripEntity>>> getCompanyTripHistory(
+    String companyId,
+  ) async {
+    try {
+      final trips = await _datasource.getCompanyTripHistory(companyId);
+      return Right(trips);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<TripEntity>>> getCompanyScheduledTrips(
+    String companyId,
+  ) async {
+    try {
+      final trips = await _datasource.getCompanyScheduledTrips(companyId);
+      return Right(trips);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  // ── Ubicaciones guardadas ─────────────────────────────────────────────────
+
+  @override
+  Future<Either<Failure, List<SavedLocationEntity>>> getSavedLocations(
+    String companyId,
+  ) async {
+    try {
+      final models = await _datasource.getSavedLocations(companyId);
+      return Right(models);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveLocation(
+    String companyId,
+    SavedLocationEntity location,
+  ) async {
+    try {
+      final model = SavedLocationModel(
+        id: location.id,
+        name: location.name,
+        address: location.address,
+        lat: location.lat,
+        lng: location.lng,
+        createdAt: location.createdAt,
       );
-      return Right(trip);
+      await _datasource.saveLocation(companyId, model);
+      return const Right(null);
+    } on FirestoreException catch (e) {
+      return Left(FirestoreFailure(message: e.message));
+    } catch (_) {
+      return const Left(ServerFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> deleteSavedLocation(
+    String companyId,
+    String locationId,
+  ) async {
+    try {
+      await _datasource.deleteSavedLocation(companyId, locationId);
+      return const Right(null);
     } on FirestoreException catch (e) {
       return Left(FirestoreFailure(message: e.message));
     } catch (_) {
@@ -239,4 +354,3 @@ class CompanyRepositoryImpl implements CompanyRepository {
     }
   }
 }
-

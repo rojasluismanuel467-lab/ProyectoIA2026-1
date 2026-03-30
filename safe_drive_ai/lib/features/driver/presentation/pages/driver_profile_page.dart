@@ -71,6 +71,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
             SnackBar(
               content: Text(state.message),
               backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 5),
             ),
           );
         } else if (state is DriverProfileLoaded) {
@@ -83,6 +84,7 @@ class _DriverProfilePageState extends State<DriverProfilePage> {
             SnackBar(
               content: Text(state.message),
               backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 5),
             ),
           );
         }

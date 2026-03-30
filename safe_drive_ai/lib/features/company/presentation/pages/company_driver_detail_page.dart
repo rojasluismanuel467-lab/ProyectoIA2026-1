@@ -262,7 +262,11 @@ class _CompanyDriverDetailPageState extends State<CompanyDriverDetailPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  _formatDate(trip.startTime),
+                  trip.actualStartTime != null
+                      ? _formatDate(trip.actualStartTime!)
+                      : (trip.scheduledDepartureTime != null
+                          ? _formatDate(trip.scheduledDepartureTime!)
+                          : '—'),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
@@ -293,8 +297,8 @@ class _CompanyDriverDetailPageState extends State<CompanyDriverDetailPage> {
                     size: 16, color: AppColors.textSecondary),
                 const SizedBox(width: 4),
                 Text(
-                  trip.endTime != null
-                      ? 'Duración: ${_formatDuration(trip.endTime!.difference(trip.startTime))}'
+                  (trip.actualEndTime != null && trip.actualStartTime != null)
+                      ? 'Duración: ${_formatDuration(trip.actualEndTime!.difference(trip.actualStartTime!))}'
                       : 'En progreso...',
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.textSecondary),
@@ -331,31 +335,39 @@ class _CompanyDriverDetailPageState extends State<CompanyDriverDetailPage> {
 
   Color _getTripStatusColor(TripStatus status) {
     switch (status) {
-      case TripStatus.active:
+      case TripStatus.inProgress:
         return AppColors.primary;
-      case TripStatus.pending:
-        return AppColors.warning;
+      case TripStatus.scheduled:
+        return AppColors.textSecondary;
       case TripStatus.pendingApproval:
         return AppColors.warning;
-      case TripStatus.onBreak:
+      case TripStatus.withImpediment:
         return AppColors.warning;
+      case TripStatus.approved:
+        return AppColors.success;
       case TripStatus.completed:
         return AppColors.success;
+      case TripStatus.cancelled:
+        return AppColors.error;
     }
   }
 
   String _getTripStatusText(TripStatus status) {
     switch (status) {
-      case TripStatus.active:
+      case TripStatus.inProgress:
         return 'En curso';
-      case TripStatus.pending:
-        return 'Pendiente';
+      case TripStatus.scheduled:
+        return 'Programado';
       case TripStatus.pendingApproval:
         return 'Esperando aprobación';
-      case TripStatus.onBreak:
-        return 'En pausa';
+      case TripStatus.withImpediment:
+        return 'Con impedimento';
+      case TripStatus.approved:
+        return 'Aprobado';
       case TripStatus.completed:
         return 'Finalizado';
+      case TripStatus.cancelled:
+        return 'Cancelado';
     }
   }
 }

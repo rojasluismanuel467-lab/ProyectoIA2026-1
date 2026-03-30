@@ -25,8 +25,8 @@ class InvitationEntity extends Equatable {
     required this.companyId,
     required this.companyName,
     required this.driverId,
-    required this.cargo,
-    required this.phone,
+    required this.driverName,
+    required this.driverEmail,
     required this.status,
     required this.sentAt,
     this.resolvedAt,
@@ -44,11 +44,11 @@ class InvitationEntity extends Equatable {
   /// UID de Firebase Auth del conductor invitado.
   final String driverId;
 
-  /// Cargo o rol propuesto para el conductor dentro de la empresa.
-  final String cargo;
+  /// Nombre del conductor invitado.
+  final String driverName;
 
-  /// Teléfono de contacto del conductor (10 dígitos, inicia con 3).
-  final String phone;
+  /// Email del conductor invitado.
+  final String driverEmail;
 
   /// Estado actual de la invitación.
   final InvitationStatus status;
@@ -65,8 +65,8 @@ class InvitationEntity extends Equatable {
         companyId,
         companyName,
         driverId,
-        cargo,
-        phone,
+        driverName,
+        driverEmail,
         status,
         sentAt,
         resolvedAt,

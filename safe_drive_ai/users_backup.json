@@ -1,0 +1,101 @@
+{"users": [
+{
+  "localId": "SDWeQ6yQ3TU877aCfqPBdj4Drmu1",
+  "email": "danielacastmor@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "oxMsRQqhzTsDwCnV9q+IgWjh+GfWC0SoVK1oOz8281M4W6IM6INRZwWvxoI7DsX9rfXGF37XrrZEhqDtfIv7HA==",
+  "salt": "CfZOG/9kXj/CqA==",
+  "lastSignedInAt": "1774234797138",
+  "createdAt": "1774233621290",
+  "providerUserInfo": []
+},
+{
+  "localId": "company_bombastik_001",
+  "email": "admin@bombastik.com.co",
+  "emailVerified": false,
+  "passwordHash": "DXF16dEK29l58usiGrqblnFHCLxn/mr2UAbC5wzWZYkJAHH8G7QRQnNo7VI7yfIblKxWSUhdIwKt8YkEV38Z4g==",
+  "salt": "G+5Z/hdjNtbA5Q==",
+  "displayName": "Transportes Bombastik S.A.S.",
+  "lastSignedInAt": "1773852460761",
+  "createdAt": "1773530572214",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "driver_carlos_gomez_003",
+  "email": "carlos.gomez@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "+xdj1tAOBTDFKx2CMgNm2OlkkFb5HgOAqJ6CYQZsvQTdvTVU6nAG5apuIPytOCLvi/jWwg1uUypxUBSoweYmRA==",
+  "salt": "2qGLmvwfl8DEKg==",
+  "displayName": "Carlos Andrés Gómez Herrera",
+  "createdAt": "1773530573440",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "driver_juan_perez_001",
+  "email": "juan.perez@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "/5ulrj+M/rxwOR0d14Zy1eJzrOoFDrldE1moVu2OzVVIpqWWas+PMROnP8mQdIG+XnbLmo/5aNMB77vzYh1CIQ==",
+  "salt": "XQuKZ6ijh7K0hA==",
+  "displayName": "Juan Carlos Pérez Gómez",
+  "lastSignedInAt": "1773852283713",
+  "createdAt": "1773530572603",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "driver_maria_lopez_002",
+  "email": "maria.lopez@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "pwnR8G272OATQG62hJZF4IB8g94/uXA4d/m4ukzJo7bNudLV6b4lwYEUUuVs+lwaomrW6hSeKnLhs+iTJwFdWQ==",
+  "salt": "99LzWwQAd2C+bg==",
+  "displayName": "María Alejandra López Ruiz",
+  "createdAt": "1773530573008",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "fS4qDSnRhdZXLpfTrjeKrJl87C82",
+  "email": "pedro.ramirez@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "4HmT71k7siWaj3Kh0gp25CUMp9DKKkY7Ww/amDZe9W8rKMSSKBMr+Nv9i1KwdRB2xr4PEElXq3woVePg+ZmAQQ==",
+  "salt": "ET88i8WS+A1OuA==",
+  "displayName": "Pedro Ramírez Torres",
+  "lastSignedInAt": "1773612506446",
+  "createdAt": "1773542484742",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "tVR4jBh4OBVmakcQLOaSTEoRTNP2",
+  "email": "luis.manuel.rojas71@gmail.com",
+  "emailVerified": true,
+  "passwordHash": "r1v8wnblCdq6r7Kawk1kTuiuRKrZfp5I8mGRCLJOFxdIoymPSu3nUTkGeM8EaBhZOrgLAJBdT798jXAYnON/5w==",
+  "salt": "KJf2DTKO5uQdzw==",
+  "displayName": "Luis Manuel Rojas",
+  "lastSignedInAt": "1773709518401",
+  "createdAt": "1773590325198",
+  "disabled": false,
+  "providerUserInfo": []
+},
+{
+  "localId": "tvZDHwjfqddKXzIo80qYuzMmfK62",
+  "email": "eliana@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "Pdxj1v1GSdkP9MmwOP1QTheiErIpF2ZcPKgqCOny6RbfVP7F3SDMrsuqH/wj+DksbwBC3x06srlOWkb6Z1wG+g==",
+  "salt": "/hJejMVtYay1Xw==",
+  "lastSignedInAt": "1774234858177",
+  "createdAt": "1774234858177",
+  "providerUserInfo": []
+},
+{
+  "localId": "veG8xbNX1iQNfVfJSNbrc7LcZ6b2",
+  "email": "pepe@email.com",
+  "emailVerified": false,
+  "passwordHash": "Nf5pHTuHfRs1A389g+UrqJwTrsF+ildKBviw4wegbNhf3o7ksKYf2ljRAyPPYor3SDtOlUrB+k+PBaw0nOHYNw==",
+  "salt": "1JxjN5MeqP33BA==",
+  "lastSignedInAt": "1773545068010",
+  "createdAt": "1773545068010",
+  "providerUserInfo": []
+}]}

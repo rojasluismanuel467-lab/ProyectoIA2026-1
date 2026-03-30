@@ -15,12 +15,14 @@ import '../../features/auth/domain/entities/user_entity.dart';
 import '../../features/auth/domain/entities/company_link_entity.dart';
 import '../../features/company/presentation/pages/company_driver_detail_page.dart';
 import '../../features/company/presentation/pages/company_home_page.dart';
+import '../../features/company/presentation/pages/company_scheduled_trips_page.dart';
 import '../../features/company/presentation/pages/register_driver_page.dart';
 import '../../features/company/presentation/pages/create_trip_page.dart';
 import '../../features/company/presentation/pages/trip_approval_detail_page.dart';
 import '../../features/driver/presentation/pages/driver_home_page.dart';
 import '../../features/trips/domain/entities/trip_entity.dart';
 import '../../features/trips/presentation/pages/trip_summary_page.dart';
+import '../../features/trips/presentation/pages/trip_detail_page.dart';
 
 /// Configuración del router de Safe Drive AI.
 ///
@@ -90,6 +92,17 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/company/scheduled-trips',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, String>?;
+          if (extra == null) return const SizedBox.shrink();
+          return CompanyScheduledTripsPage(
+            companyId: extra['companyId']!,
+            companyName: extra['companyName']!,
+          );
+        },
+      ),
+      GoRoute(
         path: '/company/register-driver',
         builder: (context, state) {
           final extra = state.extra as Map<String, String>?;
@@ -137,9 +150,25 @@ class AppRouter {
       GoRoute(
         path: '/trip/summary',
         builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null) return const RoleSelectionPage();
+          final trip = extra['trip'] as TripEntity?;
+          if (trip == null) return const RoleSelectionPage();
+          return TripSummaryPage(
+            trip: trip,
+            showDriverInfo: extra['showDriverInfo'] as bool? ?? false,
+            driverName: extra['driverName'] as String?,
+            driverPhone: extra['driverPhone'] as String?,
+            driverIdNumber: extra['driverIdNumber'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/trip/detail',
+        builder: (context, state) {
           final trip = state.extra as TripEntity?;
           if (trip == null) return const RoleSelectionPage();
-          return TripSummaryPage(trip: trip);
+          return TripDetailPage(trip: trip);
         },
       ),
     ],

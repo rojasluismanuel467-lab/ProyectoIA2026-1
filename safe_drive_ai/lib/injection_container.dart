@@ -25,18 +25,25 @@ import 'features/company/data/datasources/company_datasource.dart';
 import 'features/company/data/datasources/company_datasource_impl.dart';
 import 'features/company/data/repositories/company_repository_impl.dart';
 import 'features/company/domain/repositories/company_repository.dart';
+import 'features/company/domain/usecases/approve_trip_usecase.dart';
 import 'features/company/domain/usecases/cancel_invitation_usecase.dart';
+import 'features/company/domain/usecases/cancel_trip_usecase.dart';
+import 'features/company/domain/usecases/create_company_trip_usecase.dart';
+import 'features/company/domain/usecases/delete_saved_location_usecase.dart';
 import 'features/company/domain/usecases/get_company_drivers_usecase.dart';
+import 'features/company/domain/usecases/get_company_impediment_trips_usecase.dart';
 import 'features/company/domain/usecases/get_company_invitations_usecase.dart';
+import 'features/company/domain/usecases/get_company_pending_trips_usecase.dart';
+import 'features/company/domain/usecases/get_company_scheduled_trips_usecase.dart';
+import 'features/company/domain/usecases/get_company_trip_history_usecase.dart';
 import 'features/company/domain/usecases/get_driver_profile_usecase.dart';
+import 'features/company/domain/usecases/get_saved_locations_usecase.dart';
 import 'features/company/domain/usecases/register_driver_by_company_usecase.dart';
+import 'features/company/domain/usecases/resolve_impediment_company_usecase.dart';
+import 'features/company/domain/usecases/save_location_usecase.dart';
 import 'features/company/domain/usecases/send_invitation_usecase.dart';
 import 'features/company/domain/usecases/unlink_driver_usecase.dart';
 import 'features/company/domain/usecases/update_company_profile_usecase.dart';
-import 'features/company/domain/usecases/get_pending_trips_usecase.dart';
-import 'features/company/domain/usecases/approve_trip_closure_usecase.dart';
-import 'features/company/domain/usecases/reject_trip_closure_usecase.dart';
-import 'features/company/domain/usecases/create_trip_with_destination_usecase.dart';
 import 'features/company/presentation/bloc/company_bloc.dart';
 import 'features/driver/data/datasources/driver_datasource.dart';
 import 'features/driver/data/datasources/driver_datasource_impl.dart';
@@ -47,19 +54,24 @@ import 'features/driver/domain/usecases/get_driver_invitations_usecase.dart';
 import 'features/driver/domain/usecases/get_driver_linked_companies_usecase.dart';
 import 'features/driver/domain/usecases/reject_invitation_usecase.dart';
 import 'features/driver/domain/usecases/update_driver_profile_usecase.dart';
+import 'features/driver/presentation/bloc/driver_bloc.dart';
 import 'features/trips/data/datasources/trip_datasource.dart';
 import 'features/trips/data/datasources/trip_datasource_impl.dart';
 import 'features/trips/data/repositories/trip_repository_impl.dart';
 import 'features/trips/domain/repositories/trip_repository.dart';
+import 'features/trips/domain/usecases/end_free_trip_usecase.dart';
 import 'features/trips/domain/usecases/end_trip_usecase.dart';
+import 'features/trips/domain/usecases/generate_trip_code_usecase.dart';
 import 'features/trips/domain/usecases/get_active_trip_usecase.dart';
-import 'features/trips/domain/usecases/get_trip_route_usecase.dart';
-import 'features/trips/domain/usecases/save_route_point_usecase.dart';
-import 'features/trips/domain/usecases/start_trip_usecase.dart';
-import 'features/trips/domain/usecases/request_remote_closure_usecase.dart';
-import 'features/trips/domain/usecases/listen_to_approval_stream_usecase.dart';
-import 'features/trips/domain/usecases/end_trip_with_zone_check_usecase.dart';
+import 'features/trips/domain/usecases/get_driver_scheduled_trips_usecase.dart';
+import 'features/trips/domain/usecases/get_driver_trip_history_usecase.dart';
 import 'features/trips/domain/usecases/get_driver_trips_usecase.dart';
+import 'features/trips/domain/usecases/get_trip_route_usecase.dart';
+import 'features/trips/domain/usecases/report_impediment_usecase.dart';
+import 'features/trips/domain/usecases/resolve_impediment_usecase.dart';
+import 'features/trips/domain/usecases/save_route_point_usecase.dart';
+import 'features/trips/domain/usecases/start_free_trip_usecase.dart';
+import 'features/trips/domain/usecases/start_trip_usecase.dart';
 
 /// Contenedor global de inyección de dependencias de Safe Drive AI.
 ///
@@ -145,7 +157,7 @@ void _initCompany() {
     () => CompanyRepositoryImpl(sl()),
   );
 
-  // Use cases
+  // Use cases — drivers & invitations
   sl.registerLazySingleton(() => GetCompanyDriversUseCase(sl()));
   sl.registerLazySingleton(() => GetDriverProfileUseCase(sl()));
   sl.registerLazySingleton(() => UnlinkDriverUseCase(sl()));
@@ -154,10 +166,23 @@ void _initCompany() {
   sl.registerLazySingleton(() => CancelInvitationUseCase(sl()));
   sl.registerLazySingleton(() => UpdateCompanyProfileUseCase(sl()));
   sl.registerLazySingleton(() => RegisterDriverByCompanyUseCase(sl()));
-  sl.registerLazySingleton(() => GetPendingTripsUseCase(sl()));
-  sl.registerLazySingleton(() => ApproveTripClosureUseCase(sl()));
-  sl.registerLazySingleton(() => RejectTripClosureUseCase(sl()));
-  sl.registerLazySingleton(() => CreateTripWithDestinationUseCase(sl()));
+
+  // Use cases — trips
+  sl.registerLazySingleton(() => GetCompanyPendingTripsUseCase(sl()));
+  sl.registerLazySingleton(() => GetCompanyImpedimentTripsUseCase(sl()));
+  sl.registerLazySingleton(() => GetCompanyScheduledTripsUseCase(sl()));
+  sl.registerLazySingleton(() => ApproveTripUseCase(sl()));
+  sl.registerLazySingleton(() => CancelTripUseCase(sl()));
+  sl.registerLazySingleton(() => ResolveImpedimentCompanyUseCase(sl()));
+  sl.registerLazySingleton(() => CreateCompanyTripUseCase(sl()));
+
+  // Use cases — trip history
+  sl.registerLazySingleton(() => GetCompanyTripHistoryUseCase(sl()));
+
+  // Use cases — saved locations
+  sl.registerLazySingleton(() => GetSavedLocationsUseCase(sl()));
+  sl.registerLazySingleton(() => SaveLocationUseCase(sl()));
+  sl.registerLazySingleton(() => DeleteSavedLocationUseCase(sl()));
 
   // BLoC — factory para instancia fresca en cada CompanyHomePage
   sl.registerFactory(
@@ -169,9 +194,17 @@ void _initCompany() {
       cancelInvitationUseCase: sl(),
       updateCompanyProfileUseCase: sl(),
       registerDriverByCompanyUseCase: sl(),
-      getPendingTripsUseCase: sl(),
-      approveTripClosureUseCase: sl(),
-      rejectTripClosureUseCase: sl(),
+      getCompanyPendingTripsUseCase: sl(),
+      getCompanyImpedimentTripsUseCase: sl(),
+      getCompanyScheduledTripsUseCase: sl(),
+      approveTripUseCase: sl(),
+      cancelTripUseCase: sl(),
+      resolveImpedimentCompanyUseCase: sl(),
+      createCompanyTripUseCase: sl(),
+      getSavedLocationsUseCase: sl(),
+      saveLocationUseCase: sl(),
+      deleteSavedLocationUseCase: sl(),
+      getCompanyTripHistoryUseCase: sl(),
     ),
   );
 }
@@ -193,6 +226,17 @@ void _initDriver() {
   sl.registerLazySingleton(() => RejectInvitationUseCase(sl()));
   sl.registerLazySingleton(() => GetDriverLinkedCompaniesUseCase(sl()));
   sl.registerLazySingleton(() => UpdateDriverProfileUseCase(sl()));
+
+  // BLoC — factory para instancia fresca en cada provisión
+  sl.registerFactory(
+    () => DriverBloc(
+      getDriverInvitationsUseCase: sl(),
+      acceptInvitationUseCase: sl(),
+      rejectInvitationUseCase: sl(),
+      getDriverLinkedCompaniesUseCase: sl(),
+      updateDriverProfileUseCase: sl(),
+    ),
+  );
 }
 
 void _initTrips() {
@@ -209,13 +253,15 @@ void _initTrips() {
   // Use cases
   sl.registerLazySingleton(() => StartTripUseCase(sl()));
   sl.registerLazySingleton(() => EndTripUseCase(sl()));
+  sl.registerLazySingleton(() => StartFreeTripUseCase(sl()));
+  sl.registerLazySingleton(() => EndFreeTripUseCase(sl()));
   sl.registerLazySingleton(() => GetActiveTripUseCase(sl()));
+  sl.registerLazySingleton(() => GetDriverScheduledTripsUseCase(sl()));
+  sl.registerLazySingleton(() => GetDriverTripsUseCase(sl()));
   sl.registerLazySingleton(() => SaveRoutePointUseCase(sl()));
   sl.registerLazySingleton(() => GetTripRouteUseCase(sl()));
-  sl.registerLazySingleton(() => GetDriverTripsUseCase(sl()));
-
-  // Closure UseCases
-  sl.registerLazySingleton(() => RequestRemoteClosureUseCase(sl()));
-  sl.registerLazySingleton(() => ListenToApprovalStreamUseCase(sl()));
-  sl.registerLazySingleton(() => EndTripWithZoneCheckUseCase(sl()));
+  sl.registerLazySingleton(() => GenerateTripCodeUseCase(sl()));
+  sl.registerLazySingleton(() => ReportImpedimentUseCase(sl()));
+  sl.registerLazySingleton(() => ResolveImpedimentUseCase(sl()));
+  sl.registerLazySingleton(() => GetDriverTripHistoryUseCase(sl()));
 }

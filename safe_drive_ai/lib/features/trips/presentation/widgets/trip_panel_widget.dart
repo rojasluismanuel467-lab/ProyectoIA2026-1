@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../domain/entities/trip_entity.dart';
 import '../bloc/trip_bloc.dart';
 import '../bloc/trip_event.dart';
 import '../bloc/trip_state.dart';
-import 'end_trip_dialog.dart';
+import 'impediment_dialog.dart';
 
 /// Panel persistente de viaje mostrado en la parte superior del home del conductor.
 class TripPanelWidget extends StatelessWidget {
@@ -17,8 +19,6 @@ class TripPanelWidget extends StatelessWidget {
   });
 
   final String driverId;
-
-  /// Called when the user taps "Ver mapa" while a trip is active.
   final VoidCallback onOpenMap;
 
   String _formatElapsed(Duration d) {
@@ -28,62 +28,42 @@ class TripPanelWidget extends StatelessWidget {
     return '$h:$m:$s';
   }
 
-  Future<void> _onStartPressed(BuildContext context) async {
-    // ── 1. Permiso de ubicación (GPS) ────────────────────────────────────────
+  Future<void> _requestPermissionsAndStart(
+    BuildContext context, {
+    required VoidCallback onStart,
+  }) async {
     bool hasLocation = await Permission.locationWhenInUse.isGranted;
     if (!hasLocation) {
       final result = await Permission.locationWhenInUse.request();
       hasLocation = result.isGranted;
     }
-
     if (!hasLocation) {
       if (!context.mounted) return;
-      final continueWithout = await showDialog<bool>(
+      final cont = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const _NoLocationDialog(),
       );
-      if (continueWithout != true) return;
+      if (cont != true) return;
     }
 
-    // ── 2. Permiso de cámara ─────────────────────────────────────────────────
     bool hasCamera = await Permission.camera.isGranted;
     if (!hasCamera) {
       final result = await Permission.camera.request();
       hasCamera = result.isGranted;
     }
-
     if (!hasCamera) {
       if (!context.mounted) return;
-      final continueWithout = await showDialog<bool>(
+      final cont = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => const _NoCameraDialog(),
       );
-      if (continueWithout != true) return;
+      if (cont != true) return;
     }
 
     if (!context.mounted) return;
-    context.read<TripBloc>().add(
-          TripStartRequested(
-            driverId: driverId,
-            hasCameraPermission: hasCamera,
-          ),
-        );
-  }
-
-  Future<void> _onEndPressed(BuildContext context, String tripId) async {
-    // Show EndTripDialog and provide the bloc so it can interact with the current TripBloc
-    final tripBloc = context.read<TripBloc>();
-
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => BlocProvider.value(
-        value: tripBloc,
-        child: EndTripDialog(tripId: tripId),
-      ),
-    );
+    onStart();
   }
 
   @override
@@ -103,29 +83,110 @@ class TripPanelWidget extends StatelessWidget {
           );
         }
 
-        if (state is TripActive) {
+        if (state is TripInProgress) {
           return _ActiveTripPanel(
             formatted: _formatElapsed(state.elapsed),
-            onEnd: () => _onEndPressed(context, state.trip.id),
+            tripType: state.trip.tripType,
+            onEnd: () async {
+              final tripBloc = context.read<TripBloc>();
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => BlocProvider.value(
+                  value: tripBloc,
+                  child: _ConfirmEndDialog(
+                    message:
+                        'El viaje quedará en espera de aprobación por la empresa.',
+                  ),
+                ),
+              );
+              if (confirmed == true) {
+                tripBloc.add(EndTrip(tripId: state.trip.id));
+              }
+            },
             onOpenMap: onOpenMap,
-            isClosureRequested: state.trip.closureRequestedAt != null,
+            onImpediment: () {
+              final tripBloc = context.read<TripBloc>();
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => BlocProvider.value(
+                  value: tripBloc,
+                  child: ImpedimentDialog(tripId: state.trip.id),
+                ),
+              );
+            },
           );
         }
 
-        if (state is TripPending) {
-          return _PendingTripPanel(
-            onStart: () => _onStartPressed(context),
+        if (state is FreeTripInProgress) {
+          return _ActiveTripPanel(
+            formatted: _formatElapsed(state.elapsed),
+            tripType: TripType.free,
+            onEnd: () async {
+              final tripBloc = context.read<TripBloc>();
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => BlocProvider.value(
+                  value: tripBloc,
+                  child: _ConfirmEndDialog(
+                    message: '¿Deseas finalizar el viaje libre?',
+                  ),
+                ),
+              );
+              if (confirmed == true) {
+                tripBloc.add(EndFreeTrip(tripId: state.trip.id));
+              }
+            },
+            onOpenMap: onOpenMap,
           );
         }
 
-        return _IdleTripPanel(
-          onStart: () => _onStartPressed(context),
+        if (state is TripPendingApproval) {
+          return _PendingApprovalPanel(trip: state.trip);
+        }
+
+        if (state is TripWithImpediment) {
+          return _ImpedimentPanel(trip: state.trip);
+        }
+
+        if (state is TripListLoaded) {
+          return _IdlePanel(
+            onStartFree: () => _requestPermissionsAndStart(
+              context,
+              onStart: () {
+                final hasCamera =
+                    context.read<TripBloc>().state is TripLoading;
+                context.read<TripBloc>().add(
+                      StartFreeTrip(
+                        driverId: driverId,
+                        hasCameraPermission: hasCamera,
+                      ),
+                    );
+              },
+            ),
+          );
+        }
+
+        return _IdlePanel(
           error: state is TripError ? state.message : null,
+          onStartFree: () => _requestPermissionsAndStart(
+            context,
+            onStart: () {
+              context.read<TripBloc>().add(
+                    StartFreeTrip(
+                      driverId: driverId,
+                      hasCameraPermission: false,
+                    ),
+                  );
+            },
+          ),
         );
       },
     );
   }
 }
+
+// ── Shells ────────────────────────────────────────────────────────────────────
 
 class _PanelShell extends StatelessWidget {
   const _PanelShell({required this.child});
@@ -142,9 +203,11 @@ class _PanelShell extends StatelessWidget {
   }
 }
 
-class _IdleTripPanel extends StatelessWidget {
-  const _IdleTripPanel({required this.onStart, this.error});
-  final VoidCallback onStart;
+// ── Panels ────────────────────────────────────────────────────────────────────
+
+class _IdlePanel extends StatelessWidget {
+  const _IdlePanel({required this.onStartFree, this.error});
+  final VoidCallback onStartFree;
   final String? error;
 
   @override
@@ -172,9 +235,9 @@ class _IdleTripPanel extends StatelessWidget {
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: onStart,
+                onPressed: onStartFree,
                 icon: const Icon(Icons.play_arrow, size: 18),
-                label: const Text('Iniciar Viaje'),
+                label: const Text('Viaje Libre'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success,
                   foregroundColor: Colors.white,
@@ -205,87 +268,35 @@ class _IdleTripPanel extends StatelessWidget {
   }
 }
 
-class _PendingTripPanel extends StatelessWidget {
-  const _PendingTripPanel({required this.onStart});
-
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.warning,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          const Icon(Icons.assignment, color: Colors.white, size: 22),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Viaje asignado',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  'Presiona iniciar para aceptar',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: onStart,
-            icon: const Icon(Icons.play_arrow, size: 18),
-            label: const Text('Iniciar'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.warning,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              textStyle: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ActiveTripPanel extends StatelessWidget {
   const _ActiveTripPanel({
     required this.formatted,
+    required this.tripType,
     required this.onEnd,
     required this.onOpenMap,
-    this.isClosureRequested = false,
+    this.onImpediment,
   });
 
   final String formatted;
+  final TripType tripType;
   final VoidCallback onEnd;
   final VoidCallback onOpenMap;
-  final bool isClosureRequested;
+  final VoidCallback? onImpediment;
 
   @override
   Widget build(BuildContext context) {
+    final isFree = tripType == TripType.free;
+    final bgColor =
+        isFree ? const Color(0xFF1B5E20) : const Color(0xFF0D47A1);
+    final label =
+        isFree ? 'Viaje libre en curso' : 'Viaje empresa en curso';
+
     return Container(
       width: double.infinity,
-      color: isClosureRequested ? const Color(0xFFE65100) : const Color(0xFF1B5E20), // Naranja oscuro si está esperando
+      color: bgColor,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          // Status + timer
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,14 +307,14 @@ class _ActiveTripPanel extends StatelessWidget {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: BoxDecoration(
-                        color: isClosureRequested ? AppColors.warning : AppColors.success,
+                      decoration: const BoxDecoration(
+                        color: AppColors.success,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      isClosureRequested ? 'Esperando aprobación...' : 'Viaje en curso',
+                      label,
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -325,18 +336,26 @@ class _ActiveTripPanel extends StatelessWidget {
               ],
             ),
           ),
-          // Ver mapa button
           TextButton.icon(
             onPressed: onOpenMap,
-            icon:
-                const Icon(Icons.map_outlined, color: Colors.white70, size: 18),
+            icon: const Icon(Icons.map_outlined, color: Colors.white70, size: 18),
             label: const Text(
-              'Ver mapa',
+              'Mapa',
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
           ),
+          if (onImpediment != null) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: onImpediment,
+              icon: const Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange, size: 22),
+              tooltip: 'Reportar impedimento',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ],
           const SizedBox(width: 4),
-          // End button
           ElevatedButton.icon(
             onPressed: onEnd,
             icon: const Icon(Icons.stop, size: 18),
@@ -354,6 +373,124 @@ class _ActiveTripPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PendingApprovalPanel extends StatelessWidget {
+  const _PendingApprovalPanel({required this.trip});
+  final TripEntity trip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFE65100),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: const Row(
+        children: [
+          Icon(Icons.hourglass_top, color: Colors.white, size: 22),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Esperando aprobación',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'La empresa revisará tu viaje pronto',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImpedimentPanel extends StatelessWidget {
+  const _ImpedimentPanel({required this.trip});
+  final TripEntity trip;
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = trip.impedimentCategory;
+    final reportedAt = trip.impedimentReportedAt;
+    final timeStr = reportedAt != null
+        ? DateFormat('HH:mm').format(reportedAt)
+        : '';
+
+    return Container(
+      width: double.infinity,
+      color: AppColors.warning,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          const Icon(Icons.report_problem, color: Colors.white, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  cat != null ? cat.label : 'Impedimento reportado',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  timeStr.isNotEmpty
+                      ? 'Reportado a las $timeStr — Esperando resolución'
+                      : 'Esperando resolución de la empresa',
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Permission dialogs ────────────────────────────────────────────────────────
+
+class _ConfirmEndDialog extends StatelessWidget {
+  const _ConfirmEndDialog({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      title: const Text('Finalizar Viaje'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.error,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Finalizar'),
+        ),
+      ],
     );
   }
 }

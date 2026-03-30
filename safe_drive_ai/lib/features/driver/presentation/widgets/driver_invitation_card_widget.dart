@@ -55,13 +55,15 @@ class DriverInvitationCardWidget extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _InfoRow(
-              icon: Icons.work_outline,
-              text: 'Cargo: ${invitation.cargo}',
+              icon: Icons.person_outline,
+              text: invitation.driverName.isNotEmpty
+                  ? invitation.driverName
+                  : invitation.driverEmail,
             ),
             const SizedBox(height: 2),
             _InfoRow(
-              icon: Icons.phone_outlined,
-              text: 'Teléfono: ${invitation.phone}',
+              icon: Icons.email_outlined,
+              text: invitation.driverEmail,
             ),
             if (invitation.status == InvitationStatus.pending) ...[
               const SizedBox(height: 12),
@@ -94,8 +96,8 @@ class DriverInvitationCardWidget extends StatelessWidget {
                               companyId: invitation.companyId,
                               companyName: invitation.companyName,
                               driverId: driverId,
-                              cargo: invitation.cargo,
-                              phone: invitation.phone,
+                              cargo: invitation.driverName,
+                              phone: '',
                             ),
                           ),
                       style: ElevatedButton.styleFrom(

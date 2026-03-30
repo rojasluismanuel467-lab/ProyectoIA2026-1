@@ -25,9 +25,7 @@ class CompanyInvitationsPage extends StatefulWidget {
 
 class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
   final _formKey = GlobalKey<FormState>();
-  final _cedulaController = TextEditingController();
-  final _cargoController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _formExpanded = true;
 
   @override
@@ -40,9 +38,7 @@ class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
 
   @override
   void dispose() {
-    _cedulaController.dispose();
-    _cargoController.dispose();
-    _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -53,15 +49,11 @@ class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
           CompanyInvitationSendRequested(
             companyId: widget.companyId,
             companyName: widget.companyName,
-            driverCedula: _cedulaController.text.trim(),
-            cargo: _cargoController.text.trim(),
-            phone: _phoneController.text.trim(),
+            driverEmail: _emailController.text.trim(),
           ),
         );
 
-    _cedulaController.clear();
-    _cargoController.clear();
-    _phoneController.clear();
+    _emailController.clear();
     FocusScope.of(context).unfocus();
   }
 
@@ -84,6 +76,7 @@ class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
               content: Text(state.message),
               backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         } else if (state is CompanyError) {
@@ -92,6 +85,7 @@ class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
               content: Text(state.message),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         }
@@ -196,59 +190,19 @@ class _CompanyInvitationsPageState extends State<CompanyInvitationsPage> {
                     const Divider(color: AppColors.divider, height: 1),
                     const SizedBox(height: 14),
                     TextFormField(
-                      controller: _cedulaController,
-                      keyboardType: TextInputType.number,
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: _inputDecoration(
-                        label: 'Cedula del conductor',
-                        hint: 'Ej: 1234567890',
-                        icon: Icons.badge_outlined,
+                        label: 'Correo electrónico del conductor',
+                        hint: 'conductor@correo.com',
+                        icon: Icons.email_outlined,
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'La cedula es requerida';
+                          return 'El correo es requerido';
                         }
-                        final digits = value.trim();
-                        if (digits.length < 6 || digits.length > 10) {
-                          return 'La cedula debe tener entre 6 y 10 digitos';
-                        }
-                        if (!RegExp(r'^\d+$').hasMatch(digits)) {
-                          return 'Solo se permiten numeros';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _cargoController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: _inputDecoration(
-                        label: 'Cargo',
-                        hint: 'Ej: Conductor de carga',
-                        icon: Icons.work_outline,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El cargo es requerido';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: _inputDecoration(
-                        label: 'Telefono de contacto',
-                        hint: 'Ej: 3001234567',
-                        icon: Icons.phone_outlined,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'El telefono es requerido';
-                        }
-                        final phone = value.trim();
-                        if (!RegExp(r'^3\d{9}$').hasMatch(phone)) {
-                          return 'Ingresa un celular colombiano valido (10 digitos, inicia con 3)';
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
+                          return 'Ingresa un correo válido';
                         }
                         return null;
                       },

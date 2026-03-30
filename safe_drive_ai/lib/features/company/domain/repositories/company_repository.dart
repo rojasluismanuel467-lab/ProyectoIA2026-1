@@ -6,65 +6,42 @@ import '../../../auth/domain/entities/company_link_entity.dart';
 import '../../../auth/domain/entities/user_entity.dart';
 import '../../../trips/domain/entities/trip_entity.dart';
 import '../entities/invitation_entity.dart';
+import '../entities/saved_location_entity.dart';
 
 /// Contrato del repositorio de gestión de empresa.
-///
-/// Define todas las operaciones posibles para que una empresa administre sus
-/// conductores vinculados, invitaciones y perfil propio.
-/// La implementación concreta vive en la capa de datos.
 abstract class CompanyRepository {
-  /// Obtiene la lista de conductores activos vinculados a la empresa.
-  ///
-  /// Consulta `company_drivers` filtrando por [companyId] y status == 'active'.
+  // ── Conductores ─────────────────────────────────────────────────────────────
+
   Future<Either<Failure, List<CompanyLinkEntity>>> getCompanyDrivers(
     String companyId,
   );
 
-  /// Obtiene el perfil completo de un conductor por su UID.
-  ///
-  /// Consulta el documento en la colección `users`.
   Future<Either<Failure, UserEntity>> getDriverProfile(String driverId);
 
-  /// Desvincula a un conductor marcando el link como inactivo.
-  ///
-  /// Actualiza el campo `status` a 'inactive' y `unlinkedAt` en `company_drivers`.
   Future<Either<Failure, void>> unlinkDriver(String linkId);
 
-  /// Envía una invitación a un conductor identificado por su cédula.
-  ///
-  /// Busca en `users` el documento cuyo campo `cedula` coincide con
-  /// [driverCedula]. Si no existe, falla con [DocumentNotFoundFailure].
-  /// Crea un documento en `invitations` con status 'pending'.
+  // ── Invitaciones ─────────────────────────────────────────────────────────────
+
   Future<Either<Failure, void>> sendInvitation({
     required String companyId,
     required String companyName,
-    required String driverCedula,
-    required String cargo,
-    required String phone,
+    required String driverEmail,
   });
 
-  /// Obtiene todas las invitaciones enviadas por la empresa, ordenadas por
-  /// fecha de envío descendente.
   Future<Either<Failure, List<InvitationEntity>>> getCompanyInvitations(
     String companyId,
   );
 
-  /// Cancela una invitación pendiente.
-  ///
-  /// Actualiza el campo `status` a 'cancelled' y `resolvedAt` en `invitations`.
   Future<Either<Failure, void>> cancelInvitation(String invitationId);
 
-  /// Actualiza el nombre y representante legal de la empresa en Firestore.
+  // ── Perfil ────────────────────────────────────────────────────────────────────
+
   Future<Either<Failure, CompanyEntity>> updateCompanyProfile({
     required String companyId,
     required String name,
     required String representativeName,
   });
 
-  /// Registra un conductor nuevo en la plataforma desde la empresa.
-  ///
-  /// Crea cuenta en Firebase Auth, documento en `users` y vínculo en
-  /// `company_drivers`. Envía correo de restablecimiento al conductor.
   Future<Either<Failure, void>> registerDriverByCompany({
     required String companyId,
     required String name,
@@ -74,23 +51,70 @@ abstract class CompanyRepository {
     required String cargo,
   });
 
-  /// Obtiene los viajes pendientes de aprobación de los conductores de esta empresa
-  Future<Either<Failure, List<TripEntity>>> getPendingTrips(String companyId);
+  // ── Viajes ───────────────────────────────────────────────────────────────────
 
-  /// Aprueba el cierre remoto de un viaje
-  Future<Either<Failure, void>> approveTripClosure(String tripId);
-
-  /// Rechaza el cierre de un viaje
-  Future<Either<Failure, void>> rejectTripClosure(String tripId);
-
-  /// Crea un viaje pendiente para un conductor con destino pactado
-  Future<Either<Failure, TripEntity>> createTripWithDestination({
+  /// Crea un viaje de empresa para un conductor con todos los campos del nuevo modelo.
+  Future<Either<Failure, TripEntity>> createCompanyTrip({
     required String companyId,
     required String driverId,
+    required TripType tripType,
+    required double originLat,
+    required double originLng,
+    required String originAddress,
     required double destinationLat,
     required double destinationLng,
     required String destinationAddress,
-    DateTime? scheduledStartTime,
+    required DateTime scheduledDepartureTime,
+    required DateTime estimatedArrivalTime,
+    String? tripCode,
   });
-}
 
+  /// Obtiene los viajes `pendingApproval` de los conductores de la empresa.
+  Future<Either<Failure, List<TripEntity>>> getCompanyPendingApprovalTrips(
+    String companyId,
+  );
+
+  /// Obtiene los viajes `withImpediment` de los conductores de la empresa.
+  Future<Either<Failure, List<TripEntity>>> getCompanyImpedimentTrips(
+    String companyId,
+  );
+
+  /// Obtiene todos los viajes `scheduled` (programados) de la empresa.
+  Future<Either<Failure, List<TripEntity>>> getCompanyScheduledTrips(
+    String companyId,
+  );
+
+  /// Aprueba un viaje `pendingApproval` — cambia a `approved`.
+  Future<Either<Failure, void>> approveTrip(String tripId);
+
+  /// Cancela un viaje — cambia a `cancelled`. Solo empresa.
+  Future<Either<Failure, void>> cancelTrip(String tripId);
+
+  /// Resuelve un impedimento activo — el viaje vuelve a `scheduled`.
+  Future<Either<Failure, void>> resolveImpediment(String tripId);
+
+  /// Obtiene el historial de viajes finalizados (approved, cancelled, completed)
+  /// de todos los conductores de la empresa, ordenados por fecha descendente.
+  Future<Either<Failure, List<TripEntity>>> getCompanyTripHistory(
+    String companyId,
+  );
+
+  // ── Ubicaciones guardadas ─────────────────────────────────────────────────
+
+  /// Obtiene la lista de ubicaciones guardadas de una empresa.
+  Future<Either<Failure, List<SavedLocationEntity>>> getSavedLocations(
+    String companyId,
+  );
+
+  /// Guarda una nueva ubicación para la empresa.
+  Future<Either<Failure, void>> saveLocation(
+    String companyId,
+    SavedLocationEntity location,
+  );
+
+  /// Elimina una ubicación guardada de la empresa.
+  Future<Either<Failure, void>> deleteSavedLocation(
+    String companyId,
+    String locationId,
+  );
+}

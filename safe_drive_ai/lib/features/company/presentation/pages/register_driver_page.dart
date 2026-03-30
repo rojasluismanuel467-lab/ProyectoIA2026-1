@@ -94,6 +94,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
               content: Text(state.message),
               backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
           context.pop();
@@ -103,6 +104,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
               content: Text(state.message),
               backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
             ),
           );
         }

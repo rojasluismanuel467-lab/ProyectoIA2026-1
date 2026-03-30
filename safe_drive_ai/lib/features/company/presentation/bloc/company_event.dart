@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Contrato base para todos los eventos del BLoC de empresa.
+import '../../../trips/domain/entities/trip_entity.dart';
+
 abstract class CompanyEvent extends Equatable {
   const CompanyEvent();
 
@@ -8,102 +9,74 @@ abstract class CompanyEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Solicita la lista de conductores activos vinculados a la empresa.
 class CompanyDriversRequested extends CompanyEvent {
   const CompanyDriversRequested({required this.companyId});
-
   final String companyId;
 
   @override
   List<Object?> get props => [companyId];
 }
 
-/// Solicita desvincular a un conductor de la empresa.
 class CompanyDriverUnlinkRequested extends CompanyEvent {
   const CompanyDriverUnlinkRequested({
     required this.linkId,
     required this.companyId,
   });
-
   final String linkId;
-
-  /// Se usa para recargar la lista tras la desvinculación.
   final String companyId;
 
   @override
   List<Object?> get props => [linkId, companyId];
 }
 
-/// Solicita enviar una invitación a un conductor por su cédula.
 class CompanyInvitationSendRequested extends CompanyEvent {
   const CompanyInvitationSendRequested({
     required this.companyId,
     required this.companyName,
-    required this.driverCedula,
-    required this.cargo,
-    required this.phone,
+    required this.driverEmail,
   });
-
   final String companyId;
   final String companyName;
-  final String driverCedula;
-  final String cargo;
-  final String phone;
+  final String driverEmail;
 
   @override
-  List<Object?> get props => [
-        companyId,
-        companyName,
-        driverCedula,
-        cargo,
-        phone,
-      ];
+  List<Object?> get props => [companyId, companyName, driverEmail];
 }
 
-/// Solicita la lista de invitaciones enviadas por la empresa.
 class CompanyInvitationsRequested extends CompanyEvent {
   const CompanyInvitationsRequested({required this.companyId});
-
   final String companyId;
 
   @override
   List<Object?> get props => [companyId];
 }
 
-/// Solicita cancelar una invitación pendiente.
 class CompanyInvitationCancelRequested extends CompanyEvent {
   const CompanyInvitationCancelRequested({
     required this.invitationId,
     required this.companyId,
   });
-
   final String invitationId;
-
-  /// Se usa para recargar la lista tras la cancelación.
   final String companyId;
 
   @override
   List<Object?> get props => [invitationId, companyId];
 }
 
-/// Solicita cargar el perfil actual de la empresa.
 class CompanyProfileRequested extends CompanyEvent {
   const CompanyProfileRequested({required this.companyId});
-
   final String companyId;
 
   @override
   List<Object?> get props => [companyId];
 }
 
-/// Solicita actualizar el nombre y representante legal de la empresa.
 class CompanyProfileUpdateRequested extends CompanyEvent {
   const CompanyProfileUpdateRequested({
     required this.companyId,
     required this.name,
     required this.representativeName,
   });
-
   final String companyId;
   final String name;
   final String representativeName;
@@ -112,7 +85,6 @@ class CompanyProfileUpdateRequested extends CompanyEvent {
   List<Object?> get props => [companyId, name, representativeName];
 }
 
-/// Solicita registrar un conductor nuevo en la plataforma desde la empresa.
 class CompanyDriverRegisterRequested extends CompanyEvent {
   const CompanyDriverRegisterRequested({
     required this.companyId,
@@ -123,7 +95,6 @@ class CompanyDriverRegisterRequested extends CompanyEvent {
     required this.phone,
     required this.cargo,
   });
-
   final String companyId;
   final String companyName;
   final String name;
@@ -133,48 +104,45 @@ class CompanyDriverRegisterRequested extends CompanyEvent {
   final String cargo;
 
   @override
-  List<Object?> get props => [
-        companyId,
-        companyName,
-        name,
-        cedula,
-        email,
-        phone,
-        cargo,
-      ];
+  List<Object?> get props =>
+      [companyId, companyName, name, cedula, email, phone, cargo];
 }
 
-/// Solicita obtener la lista de viajes pendientes de aprobación de cierre.
+// ── Viajes ───────────────────────────────────────────────────────────────────
+
+/// Solicita la lista de viajes pendientes de aprobación.
 class CompanyPendingTripsRequested extends CompanyEvent {
   const CompanyPendingTripsRequested({required this.companyId});
-
   final String companyId;
 
   @override
   List<Object?> get props => [companyId];
 }
 
-/// Solicita aprobar el cierre de un viaje.
-class CompanyTripClosureApproved extends CompanyEvent {
-  const CompanyTripClosureApproved({
-    required this.tripId,
-    required this.companyId,
-  });
-
-  final String tripId;
-  final String companyId; // Para poder recargar la lista luego de aprobar
+/// Solicita la lista de viajes con impedimento activo.
+class CompanyImpedimentTripsRequested extends CompanyEvent {
+  const CompanyImpedimentTripsRequested({required this.companyId});
+  final String companyId;
 
   @override
-  List<Object?> get props => [tripId, companyId];
+  List<Object?> get props => [companyId];
 }
 
-/// Solicita rechazar el cierre de un viaje.
-class CompanyTripClosureRejected extends CompanyEvent {
-  const CompanyTripClosureRejected({
+/// Solicita la lista de viajes programados (scheduled) de la empresa.
+class CompanyScheduledTripsRequested extends CompanyEvent {
+  const CompanyScheduledTripsRequested({required this.companyId});
+  final String companyId;
+
+  @override
+  List<Object?> get props => [companyId];
+}
+
+/// Empresa aprueba un viaje en `pendingApproval`.
+class CompanyTripApproved extends CompanyEvent {
+  const CompanyTripApproved({
     required this.tripId,
     required this.companyId,
   });
-
   final String tripId;
   final String companyId;
 
@@ -182,3 +150,129 @@ class CompanyTripClosureRejected extends CompanyEvent {
   List<Object?> get props => [tripId, companyId];
 }
 
+/// Empresa cancela un viaje.
+class CompanyTripCancelled extends CompanyEvent {
+  const CompanyTripCancelled({
+    required this.tripId,
+    required this.companyId,
+  });
+  final String tripId;
+  final String companyId;
+
+  @override
+  List<Object?> get props => [tripId, companyId];
+}
+
+/// Empresa resuelve un impedimento activo — el viaje vuelve a scheduled.
+class CompanyImpedimentResolved extends CompanyEvent {
+  const CompanyImpedimentResolved({
+    required this.tripId,
+    required this.companyId,
+  });
+  final String tripId;
+  final String companyId;
+
+  @override
+  List<Object?> get props => [tripId, companyId];
+}
+
+// ── Ubicaciones guardadas ─────────────────────────────────────────────────────
+
+/// Solicita la lista de ubicaciones guardadas de la empresa.
+class LoadSavedLocations extends CompanyEvent {
+  const LoadSavedLocations({required this.companyId});
+  final String companyId;
+
+  @override
+  List<Object?> get props => [companyId];
+}
+
+/// Solicita guardar una nueva ubicación.
+class SaveLocationRequested extends CompanyEvent {
+  const SaveLocationRequested({
+    required this.companyId,
+    required this.name,
+    required this.address,
+    required this.lat,
+    required this.lng,
+  });
+
+  final String companyId;
+  final String name;
+  final String address;
+  final double lat;
+  final double lng;
+
+  @override
+  List<Object?> get props => [companyId, name, address, lat, lng];
+}
+
+/// Solicita eliminar una ubicación guardada.
+class DeleteSavedLocationRequested extends CompanyEvent {
+  const DeleteSavedLocationRequested({
+    required this.companyId,
+    required this.locationId,
+  });
+
+  final String companyId;
+  final String locationId;
+
+  @override
+  List<Object?> get props => [companyId, locationId];
+}
+
+/// Solicita el historial de viajes finalizados de la empresa.
+class LoadCompanyTripHistory extends CompanyEvent {
+  const LoadCompanyTripHistory({required this.companyId});
+  final String companyId;
+
+  @override
+  List<Object?> get props => [companyId];
+}
+
+/// Empresa crea un viaje para un conductor.
+class CompanyTripCreateRequested extends CompanyEvent {
+  const CompanyTripCreateRequested({
+    required this.companyId,
+    required this.driverId,
+    required this.tripType,
+    required this.originLat,
+    required this.originLng,
+    required this.originAddress,
+    required this.destinationLat,
+    required this.destinationLng,
+    required this.destinationAddress,
+    required this.scheduledDepartureTime,
+    required this.estimatedArrivalTime,
+    this.tripCode,
+  });
+
+  final String companyId;
+  final String driverId;
+  final TripType tripType;
+  final double originLat;
+  final double originLng;
+  final String originAddress;
+  final double destinationLat;
+  final double destinationLng;
+  final String destinationAddress;
+  final DateTime scheduledDepartureTime;
+  final DateTime estimatedArrivalTime;
+  final String? tripCode;
+
+  @override
+  List<Object?> get props => [
+        companyId,
+        driverId,
+        tripType,
+        originLat,
+        originLng,
+        originAddress,
+        destinationLat,
+        destinationLng,
+        destinationAddress,
+        scheduledDepartureTime,
+        estimatedArrivalTime,
+        tripCode,
+      ];
+}
