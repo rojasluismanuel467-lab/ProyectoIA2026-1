@@ -30,12 +30,21 @@ class CompanyDriversPage extends StatefulWidget {
 }
 
 class _CompanyDriversPageState extends State<CompanyDriversPage> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     context.read<CompanyBloc>().add(
           CompanyDriversRequested(companyId: widget.companyId),
         );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _onRefresh() async {
@@ -102,63 +111,77 @@ class _CompanyDriversPageState extends State<CompanyDriversPage> {
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: AppColors.primary,
-      child: drivers.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.5,
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: AppColors.divider,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'No tienes conductores vinculados',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 16,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Usa el boton + para invitar un conductor',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // Barra de búsqueda
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre...',
+                  prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.divider),
                   ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
-              ],
-            )
-          : ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: drivers.length,
-              itemBuilder: (context, index) {
-                final link = drivers[index];
-                return DriverCardWidget(
-                  key: ValueKey(link.id),
-                  link: link,
-                  companyId: widget.companyId,
-                  onTap: (profile) {
-                    context.push(
-                      '/company/driver-detail',
-                      extra: {
-                        'link': link,
-                        'profile': profile,
-                      },
-                    );
-                  },
-                );
-              },
+                onChanged: (value) => setState(() => _searchQuery = value.toLowerCase().trim()),
+                textCapitalization: TextCapitalization.words,
+              ),
             ),
+          ),
+          
+          // Lista de conductores (se filtra en el widget DriverCardWidget mediante FutureBuilder)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final link = drivers[index];
+                  return DriverCardWidget(
+                    key: ValueKey(link.id),
+                    link: link,
+                    companyId: widget.companyId,
+                    onTap: (profile) {
+                      context.push(
+                        '/company/driver-detail',
+                        extra: {
+                          'link': link,
+                          'profile': profile,
+                        },
+                      );
+                    },
+                  );
+                },
+                childCount: drivers.length,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -19,12 +19,24 @@ class DriverTripHistoryPage extends StatefulWidget {
 }
 
 class _DriverTripHistoryPageState extends State<DriverTripHistoryPage> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.toLowerCase().trim());
+    });
     context
         .read<TripBloc>()
         .add(LoadDriverTripHistory(driverId: widget.driverId));
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _reload() {
@@ -57,7 +69,12 @@ class _DriverTripHistoryPageState extends State<DriverTripHistoryPage> {
             if (state.trips.isEmpty) {
               return _EmptyView(onRefresh: _reload);
             }
-            return _HistoryList(trips: state.trips, onRefresh: _reload);
+            return _HistoryList(
+              trips: state.trips,
+              onRefresh: _reload,
+              searchQuery: _searchQuery,
+              searchController: _searchController,
+            );
           }
 
           return const SizedBox.shrink();
@@ -70,27 +87,132 @@ class _DriverTripHistoryPageState extends State<DriverTripHistoryPage> {
 // ── Lista de viajes ───────────────────────────────────────────────────────────
 
 class _HistoryList extends StatelessWidget {
-  const _HistoryList({required this.trips, required this.onRefresh});
+  const _HistoryList({
+    required this.trips,
+    required this.onRefresh,
+    required this.searchQuery,
+    required this.searchController,
+  });
 
   final List<TripEntity> trips;
   final VoidCallback onRefresh;
+  final String searchQuery;
+  final TextEditingController searchController;
 
   @override
   Widget build(BuildContext context) {
+    // Filtrar viajes por empresa
+    final filteredTrips = trips.where((trip) {
+      if (searchQuery.isEmpty) return true;
+      
+      final companyName = (trip.companyName ?? '').toLowerCase();
+      return companyName.contains(searchQuery);
+    }).toList();
+
     return RefreshIndicator(
       onRefresh: () async {
         onRefresh();
         await Future.delayed(const Duration(milliseconds: 800));
       },
       color: AppColors.primary,
-      child: ListView.builder(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: trips.length,
-        itemBuilder: (context, index) =>
-            _TripHistoryCard(trip: trips[index], onTripTap: () {
-          context.push('/trip/detail', extra: trips[index]);
-        }),
+        slivers: [
+          // Barra de búsqueda
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por empresa...',
+                  prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                  suffixIcon: searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                          onPressed: () {
+                            searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.divider),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+            ),
+          ),
+          
+          // Lista de viajes
+          filteredTrips.isEmpty
+              ? SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.history,
+                          size: 64,
+                          color: AppColors.divider,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          searchQuery.isNotEmpty
+                              ? 'No se encontraron viajes'
+                              : 'Sin historial de viajes',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        if (searchQuery.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Intenta con otro nombre de empresa',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final trip = filteredTrips[index];
+                        return _TripHistoryCard(
+                          trip: trip,
+                          onTripTap: () {
+                            context.push('/trip/detail', extra: trip);
+                          },
+                        );
+                      },
+                      childCount: filteredTrips.length,
+                    ),
+                  ),
+                ),
+        ],
       ),
     );
   }

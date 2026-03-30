@@ -194,7 +194,28 @@
       "WebFetch(domain:link.springer.com)",
       "WebFetch(domain:www.mapbox.com)",
       "WebFetch(domain:www.routific.com)",
-      "WebFetch(domain:fleetdna.geotab.com)"
+      "WebFetch(domain:fleetdna.geotab.com)",
+      "Bash(flutter analyze:*)",
+      "Bash(firebase --version)",
+      "Bash(firebase projects:list)",
+      "Bash(firebase use:*)",
+      "Bash(firebase firestore:delete --all-collections --project bombastik-e516e -f)",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); users=data.get\\(''''users'''',[]\\); [print\\(u.get\\(''''localId'''',''''''''\\),u.get\\(''''email'''',''''''''\\)\\) for u in users]\")",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d[''''client''''][0][''''api_key''''][0][''''current_key'''']\\)\")",
+      "Bash(npm list:*)",
+      "Bash(mkdir -p /tmp/fb-cleanup)",
+      "Read(//tmp/**)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(GOOGLE_CLOUD_PROJECT=bombastik-e516e node delete_users.js)",
+      "Bash(gcloud auth:*)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); tokens=d.get\\(''''tokens'''',{}\\); print\\(''''refresh_token exists:'''', bool\\(tokens.get\\(''''refresh_token''''\\)\\)\\)\")",
+      "Read(//c/Users/luism/Documents/Universidad/IA/ProyectoIA2026-1/safe_drive_ai/$APPDATA/**)",
+      "Bash(firebase login:ci --no-localhost)",
+      "Bash(firebase:*)",
+      "Bash(flutterfire configure:*)",
+      "Bash(dart pub:*)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''Project ID:'''', d[''''project_info''''][''''project_id'''']\\); print\\(''''App ID:'''', d[''''client''''][0][''''client_info''''][''''mobilesdk_app_id'''']\\)\")"
     ]
   }
 }

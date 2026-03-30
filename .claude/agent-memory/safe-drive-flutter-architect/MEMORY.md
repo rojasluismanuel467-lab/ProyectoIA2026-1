@@ -11,3 +11,5 @@
 | [company_feature.md](./company_feature.md) | project | Feature company/ 100% completo: 9 archivos domain, 4 data, 7 presentation. DI y rutas actualizadas. flutter analyze: 0 issues. |
 | [driver_feature.md](./driver_feature.md) | project | Feature driver/ 100% completo: 6 domain, 3 data, 9 presentation. DI y rutas actualizadas. flutter analyze: 0 issues. |
 | [driver_registration_flow.md](./driver_registration_flow.md) | project | Decisión de implementar registro independiente para conductores a través de DriverRegisterPage, en complemento a la creación de conductores hecha por empresas (Flujo 1 vs Flujo 2). |
+| [trips_redesign.md](./trips_redesign.md) | project | Rediseño completo del módulo trips (marzo 2026): TripType/TripStatus/ImpedimentCategory nuevos, actualStartTime/actualEndTime reemplazan startTime/endTime, DI y todas las páginas empresa actualizadas. flutter analyze: 0 errors. |
+| [driver_trip_history.md](./driver_trip_history.md) | project | Historial de viajes del conductor: GetDriverTripHistoryUseCase, 3 nuevos TripStates, TripBloc ampliado, DriverTripHistoryPage como índice 5 del IndexedStack en DriverHomePage. flutter analyze: 0 errors. |
