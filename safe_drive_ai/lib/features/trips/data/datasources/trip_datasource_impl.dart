@@ -414,21 +414,22 @@ class TripDatasourceImpl implements TripDatasource {
 
   @override
   Future<List<TripModel>> getDriverTripHistory(String driverId) async {
-    final statuses = ['approved', 'cancelled', 'completed'];
-    final List<TripModel> all = [];
+    // Optimización: Hacer una sola consulta en lugar de 3 separadas
+    // Usamos 'whereIn' para obtener todos los estados de una vez
+    final snapshot = await _firestore
+        .collection('trips')
+        .where('driverId', isEqualTo: driverId)
+        .where('status', whereIn: ['approved', 'cancelled', 'completed'])
+        .orderBy('actualEndTime', descending: true)
+        .limit(50)
+        .get();
 
-    for (final status in statuses) {
-      final snapshot = await _firestore
-          .collection('trips')
-          .where('driverId', isEqualTo: driverId)
-          .where('status', isEqualTo: status)
-          .get();
-      for (final doc in snapshot.docs) {
-        all.add(TripModel.fromMap(doc.id, doc.data()));
-      }
-    }
+    final trips = snapshot.docs
+        .map((doc) => TripModel.fromMap(doc.id, doc.data()))
+        .toList();
 
-    all.sort((a, b) {
+    // Ordenamiento adicional para asegurar consistencia
+    trips.sort((a, b) {
       final aTime = a.actualEndTime;
       final bTime = b.actualEndTime;
       if (aTime == null && bTime == null) return 0;
@@ -437,7 +438,7 @@ class TripDatasourceImpl implements TripDatasource {
       return bTime.compareTo(aTime);
     });
 
-    return all.take(50).toList();
+    return trips.take(50).toList();
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
