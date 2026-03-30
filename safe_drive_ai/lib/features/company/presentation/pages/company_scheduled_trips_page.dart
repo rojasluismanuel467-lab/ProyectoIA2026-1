@@ -28,6 +28,7 @@ class CompanyScheduledTripsPage extends StatefulWidget {
 
 class _CompanyScheduledTripsPageState extends State<CompanyScheduledTripsPage> {
   String _filterStatus = 'all';
+  List<TripEntity> _currentTrips = [];
 
   @override
   void initState() {
@@ -116,49 +117,151 @@ class _CompanyScheduledTripsPageState extends State<CompanyScheduledTripsPage> {
   }
 
   Widget _buildFilterBar() {
+    // Contar viajes por estado
+    final tripsByStatus = _currentTrips.fold<Map<String, int>>(
+      {},
+      (map, trip) {
+        final status = trip.status.name;
+        map[status] = (map[status] ?? 0) + 1;
+        return map;
+      },
+    );
+    final totalCount = _currentTrips.length;
+
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _FilterChip('Todos', 'all'),
-            const SizedBox(width: 8),
-            _FilterChip('Programados', 'scheduled'),
-            const SizedBox(width: 8),
-            _FilterChip('En Curso', 'inProgress'),
-            const SizedBox(width: 8),
-            _FilterChip('Aprobados', 'approved'),
-            const SizedBox(width: 8),
-            _FilterChip('Completados', 'completed'),
-          ],
-        ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Título explicativo
+          Row(
+            children: [
+              const Icon(
+                Icons.filter_list_outlined,
+                size: 20,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Filtrar por estado:',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Filtros en Wrap (sin scroll)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _FilterChip(
+                label: 'Todos',
+                value: 'all',
+                count: totalCount,
+                icon: Icons.all_inclusive,
+              ),
+              _FilterChip(
+                label: 'Programados',
+                value: 'scheduled',
+                count: tripsByStatus['scheduled'] ?? 0,
+                icon: Icons.schedule,
+              ),
+              _FilterChip(
+                label: 'En Curso',
+                value: 'inProgress',
+                count: tripsByStatus['inProgress'] ?? 0,
+                icon: Icons.directions_bus,
+              ),
+              _FilterChip(
+                label: 'Aprobados',
+                value: 'approved',
+                count: tripsByStatus['approved'] ?? 0,
+                icon: Icons.check_circle,
+              ),
+              _FilterChip(
+                label: 'Completados',
+                value: 'completed',
+                count: tripsByStatus['completed'] ?? 0,
+                icon: Icons.flag,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _FilterChip(String label, String value) {
+  Widget _FilterChip({
+    required String label,
+    required String value,
+    required int count,
+    required IconData icon,
+  }) {
     final isSelected = _filterStatus == value;
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? AppColors.textOnPrimary : AppColors.textSecondary,
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+    return Material(
+      elevation: isSelected ? 2 : 0,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () {
+          setState(() => _filterStatus = value);
+          _loadTrips();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : AppColors.primarySurface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.divider,
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? AppColors.textOnPrimary : AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? AppColors.textOnPrimary : AppColors.primary,
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected 
+                      ? Colors.white.withValues(alpha: 0.3)
+                      : AppColors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: TextStyle(
+                    color: isSelected 
+                        ? AppColors.textOnPrimary
+                        : AppColors.textOnPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() => _filterStatus = value);
-        _loadTrips();
-      },
-      backgroundColor: AppColors.primaryLight,
-      selectedColor: AppColors.primary,
-      checkmarkColor: AppColors.textOnPrimary,
-      side: BorderSide(
-        color: isSelected ? AppColors.primary : AppColors.divider,
       ),
     );
   }
@@ -173,6 +276,7 @@ class _CompanyScheduledTripsPageState extends State<CompanyScheduledTripsPage> {
     List<TripEntity> trips = [];
     if (state is CompanyScheduledTripsLoaded) {
       trips = state.scheduledTrips;
+      _currentTrips = trips; // Guardar para contar en los filtros
     }
 
     // Aplicar filtros
