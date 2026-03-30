@@ -14,8 +14,9 @@ import '../widgets/primary_button_widget.dart';
 
 /// Pantalla de registro independiente de conductor.
 ///
-/// Captura los 4 campos requeridos por [AuthDriverRegisterRequested] y
+/// Captura los 5 campos requeridos por [AuthDriverRegisterRequested] y
 /// valida confirmación de contraseña localmente.
+/// Campos: nombre, cédula, email, teléfono y contraseña.
 class DriverRegisterPage extends StatefulWidget {
   const DriverRegisterPage({super.key});
 
@@ -28,6 +29,7 @@ class _DriverRegisterPageState extends State<DriverRegisterPage> {
   final _nameController = TextEditingController();
   final _cedulaController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -36,6 +38,7 @@ class _DriverRegisterPageState extends State<DriverRegisterPage> {
     _nameController.dispose();
     _cedulaController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -49,6 +52,7 @@ class _DriverRegisterPageState extends State<DriverRegisterPage> {
             name: _nameController.text.trim(),
             cedula: _cedulaController.text.trim(),
             email: _emailController.text.trim(),
+            phone: _phoneController.text.trim(),
             password: _passwordController.text,
           ),
         );
@@ -133,7 +137,29 @@ class _DriverRegisterPageState extends State<DriverRegisterPage> {
                       enabled: !isLoading,
                     ),
                     const SizedBox(height: 16),
-                    // 4. Contraseña
+                    // 4. Teléfono
+                    AuthTextFieldWidget(
+                      label: 'Teléfono celular',
+                      hint: '300 123 4567',
+                      controller: _phoneController,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El teléfono es obligatorio';
+                        }
+                        // Validar que sean 10 dígitos numéricos
+                        final phoneRegex = RegExp(r'^\d{10}$');
+                        if (!phoneRegex.hasMatch(value.trim().replaceAll(' ', ''))) {
+                          return 'Ingresa un teléfono válido (10 dígitos)';
+                        }
+                        return null;
+                      },
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      prefixIcon: Icons.phone_outlined,
+                      enabled: !isLoading,
+                    ),
+                    const SizedBox(height: 16),
+                    // 5. Contraseña
                     PasswordFieldWidget(
                       label: 'Contraseña',
                       controller: _passwordController,
@@ -141,7 +167,7 @@ class _DriverRegisterPageState extends State<DriverRegisterPage> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 16),
-                    // 5. Confirmar contraseña
+                    // 6. Confirmar contraseña
                     PasswordFieldWidget(
                       label: 'Confirmar contraseña',
                       controller: _confirmPasswordController,

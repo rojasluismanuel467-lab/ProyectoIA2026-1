@@ -113,6 +113,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
     String name,
     String cedula,
     String email,
+    String phone,
     String password,
   ) async {
     final cedulaQuery = await _firestore
@@ -136,6 +137,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
         name: name,
         cedula: cedula,
         email: email,
+        phone: phone,
         role: UserRole.driver,
         createdAt: DateTime.now(),
       );

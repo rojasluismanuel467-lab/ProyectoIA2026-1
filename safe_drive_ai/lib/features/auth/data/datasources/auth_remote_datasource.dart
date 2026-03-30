@@ -29,6 +29,7 @@ abstract class AuthRemoteDatasource {
     String name,
     String cedula,
     String email,
+    String phone,
     String password,
   );
 

@@ -8,6 +8,7 @@ class UserModel extends UserEntity {
     required super.name,
     required super.cedula,
     required super.email,
+    required super.phone,
     required super.role,
     required super.createdAt,
   });
@@ -18,6 +19,7 @@ class UserModel extends UserEntity {
       name: map['name'] as String,
       cedula: map['cedula'] as String,
       email: map['email'] as String,
+      phone: map['phone'] as String? ?? '',
       role: (map['role'] as String) == 'driver'
           ? UserRole.driver
           : UserRole.company,
@@ -30,6 +32,7 @@ class UserModel extends UserEntity {
       'name': name,
       'cedula': cedula,
       'email': email,
+      'phone': phone,
       'role': role == UserRole.driver ? 'driver' : 'company',
       'createdAt': FieldValue.serverTimestamp(),
     };

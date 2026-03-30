@@ -40,6 +40,7 @@ abstract class AuthRepository {
     String name,
     String cedula,
     String email,
+    String phone,
     String password,
   );
 

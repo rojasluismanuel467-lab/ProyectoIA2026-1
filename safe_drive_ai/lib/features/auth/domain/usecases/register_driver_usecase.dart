@@ -19,6 +19,7 @@ class RegisterDriverUseCase
       params.name,
       params.cedula,
       params.email,
+      params.phone,
       params.password,
     );
   }
@@ -29,14 +30,16 @@ class RegisterDriverParams extends Equatable {
     required this.name,
     required this.cedula,
     required this.email,
+    required this.phone,
     required this.password,
   });
 
   final String name;
   final String cedula;
   final String email;
+  final String phone;
   final String password;
 
   @override
-  List<Object?> get props => [name, cedula, email, password];
+  List<Object?> get props => [name, cedula, email, phone, password];
 }

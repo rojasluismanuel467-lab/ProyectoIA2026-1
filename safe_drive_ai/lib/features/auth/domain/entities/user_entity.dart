@@ -18,6 +18,7 @@ class UserEntity extends Equatable {
     required this.name,
     required this.cedula,
     required this.email,
+    required this.phone,
     required this.role,
     required this.createdAt,
   });
@@ -34,6 +35,9 @@ class UserEntity extends Equatable {
   /// Correo electrónico del conductor.
   final String email;
 
+  /// Teléfono celular del conductor (10 dígitos).
+  final String phone;
+
   /// Rol del usuario en el sistema.
   final UserRole role;
 
@@ -41,5 +45,5 @@ class UserEntity extends Equatable {
   final DateTime createdAt;
 
   @override
-  List<Object?> get props => [id, name, cedula, email, role, createdAt];
+  List<Object?> get props => [id, name, cedula, email, phone, role, createdAt];
 }

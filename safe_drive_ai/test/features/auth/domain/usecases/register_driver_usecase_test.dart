@@ -20,6 +20,7 @@ void main() {
   const tName = 'Juan Perez';
   const tCedula = '1234567890';
   const tEmail = 'juan@test.com';
+  const tPhone = '3001234567';
   const tPassword = 'Password123!';
 
   final tUser = UserEntity(
@@ -27,6 +28,7 @@ void main() {
     name: tName,
     cedula: tCedula,
     email: tEmail,
+    phone: tPhone,
     role: UserRole.driver,
     createdAt: DateTime.now(),
   );
@@ -35,6 +37,7 @@ void main() {
     name: tName,
     cedula: tCedula,
     email: tEmail,
+    phone: tPhone,
     password: tPassword,
   );
 
@@ -47,6 +50,7 @@ void main() {
           tName,
           tCedula,
           tEmail,
+          tPhone,
           tPassword,
         ),
       ).thenAnswer((_) async => Right(tUser));
@@ -59,6 +63,7 @@ void main() {
           tName,
           tCedula,
           tEmail,
+          tPhone,
           tPassword,
         ),
       ).called(1);
@@ -71,7 +76,7 @@ void main() {
     () async {
       // arrange
       when(
-        () => mockAuthRepository.registerDriver(any(), any(), any(), any()),
+        () => mockAuthRepository.registerDriver(any(), any(), any(), any(), any()),
       ).thenAnswer((_) async => const Left(CedulaAlreadyRegisteredFailure()));
       // act
       final result = await usecase(tParams);

@@ -100,6 +100,7 @@ class AuthRepositoryImpl implements AuthRepository {
     String name,
     String cedula,
     String email,
+    String phone,
     String password,
   ) async {
     try {
@@ -107,6 +108,7 @@ class AuthRepositoryImpl implements AuthRepository {
         name,
         cedula,
         email,
+        phone,
         password,
       );
       return Right(model);
